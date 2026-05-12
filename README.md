@@ -1,36 +1,201 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🧩 Puzzle Game Collection
 
-## Getting Started
+A collection of simple but popular online puzzle games built with Next.js.
 
-First, run the development server:
+This project focuses on three main components for every game:
+
+- 🎮 Game implementation
+- 🧠 Solver algorithm
+- ⚙️ Puzzle generator
+
+The purpose of this project is to explore game logic, algorithms, procedural generation, and optimization techniques through classic puzzle games.
+
+---
+
+# ✨ Features
+
+- Multiple puzzle games in one platform
+- Playable web-based games
+- Automatic puzzle solvers
+- Random level generators
+- Shared reusable algorithms
+- Responsive UI
+- Built with Next.js + TypeScript
+
+---
+
+# 🎮 Games
+
+## Water Sort Puzzle
+
+Sort colored liquids into separate bottles until every bottle contains only one color.
+
+### Includes
+
+- Interactive gameplay
+- BFS / DFS / A\* solver
+- Random solvable level generator
+- Difficulty scaling
+
+---
+
+## Connect Pipe
+
+Connect all pipes correctly so water can flow from source to destination.
+
+### Includes
+
+- Rotatable pipe system
+- Graph/pathfinding solver
+- Procedural map generator
+- Connectivity validation
+
+---
+
+## Planned Games
+
+- Sudoku
+- Flow Free
+- Sliding Puzzle
+- Nonogram
+- Sokoban
+- Maze Generator
+- Unblock Me
+
+---
+
+# 🏗️ Project Structure
+
+```bash
+src/
+│
+├── games/
+│   ├── water-sort/
+│   │   ├── components/
+│   │   ├── game/
+│   │   ├── solver/
+│   │   ├── generator/
+│   │   └── types/
+│   │
+│   ├── connect-pipe/
+│   │   ├── components/
+│   │   ├── game/
+│   │   ├── solver/
+│   │   ├── generator/
+│   │   └── types/
+│
+├── shared/
+│   ├── algorithms/
+│   ├── utils/
+│   ├── hooks/
+│   └── components/
+│
+├── app/
+│
+└── README.md
+```
+
+---
+
+# 🧠 Architecture
+
+Every game contains 3 core modules:
+
+## 1. Game
+
+Responsible for:
+
+- Game rules
+- State management
+- Rendering
+- User interaction
+
+---
+
+## 2. Solver
+
+Responsible for solving puzzles automatically using algorithms such as:
+
+- BFS
+- DFS
+- A\*
+- Backtracking
+- Graph traversal
+- Constraint solving
+
+---
+
+## 3. Generator
+
+Responsible for creating valid and solvable puzzles.
+
+Features:
+
+- Random generation
+- Difficulty balancing
+- Solvability validation
+- Puzzle randomization
+
+---
+
+# 🚀 Getting Started
+
+## Install Dependencies
+
+```bash
+npm install
+```
+
+## Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+# 🛠️ Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- Canvas / SVG
+- Zustand or Redux
+- Web Workers
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# 🎯 Goals
 
-## Deploy on Vercel
+- Learn puzzle-solving algorithms
+- Explore procedural generation
+- Build reusable game frameworks
+- Optimize solving performance
+- Create interactive browser games
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# 📌 Future Improvements
+
+- Multiplayer mode
+- AI-generated puzzles
+- Daily challenges
+- Replay system
+- Leaderboards
+- Mobile support
+- Benchmark visualization
+
+---
+
+# 📄 License
+
+MIT License
+
+---
