@@ -1,32 +1,44 @@
-import { useEffect, useRef, useState } from "react";
+"use client";
 
-export function useTimer(active: boolean) {
-  const [seconds, setSeconds] = useState(0);
+import { useState, useRef, useEffect, useCallback } from "react";
 
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+export interface UseTimerReturn {
+  elapsed: number;
+  startTimer: () => void;
+  stopTimer: () => void;
+  resetTimer: () => void;
+}
+
+export function useTimer(): UseTimerReturn {
+  const [elapsed, setElapsed] = useState(0);
+  const [running, setRunning] = useState(false);
+  const startRef = useRef<number>(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!active) {
-      return;
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (running) {
+      intervalRef.current = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+      }, 1000);
     }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [running]);
 
-    intervalRef.current = setInterval(() => {
-      setSeconds((prev) => prev + 1);
-    }, 1000);
+  const startTimer = useCallback(() => {
+    startRef.current = Date.now() - elapsed * 1000;
+    setRunning(true);
+  }, [elapsed]);
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [active]);
+  const stopTimer = useCallback(() => {
+    setRunning(false);
+  }, []);
 
-  function reset() {
-    setSeconds(0);
-  }
+  const resetTimer = useCallback(() => {
+    setElapsed(0);
+    startRef.current = Date.now();
+    setRunning(true);
+  }, []);
 
-  return {
-    seconds,
-    reset,
-  };
+  return { elapsed, startTimer, stopTimer, resetTimer };
 }

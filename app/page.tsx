@@ -1,65 +1,108 @@
-import Image from "next/image";
+import Link from "next/link";
+
+const GAMES = [
+  {
+    href: "/games/kings",
+    title: "Kings",
+    icon: "♛",
+    description: "Place one king per region, row, and column. No two kings may be adjacent.",
+    tags: ["Puzzle", "Logic"],
+    status: "playable",
+  },
+  {
+    href: "#",
+    title: "Water Sort",
+    icon: "🧪",
+    description: "Sort colored liquids into separate bottles.",
+    tags: ["Puzzle", "Casual"],
+    status: "coming",
+  },
+  {
+    href: "#",
+    title: "Connect Pipe",
+    icon: "🔧",
+    description: "Connect all pipes so water flows from source to destination.",
+    tags: ["Puzzle", "Logic"],
+    status: "coming",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div
+      className="min-h-screen flex flex-col items-center py-16 px-6"
+      style={{
+        background: "linear-gradient(135deg,#0f0e0d 0%,#161410 60%,#0a0908 100%)",
+        color: "#d4c49a",
+      }}
+    >
+      {/* Header */}
+      <div className="text-center mb-14">
+        <div className="flex items-center justify-center gap-4 mb-3">
+          <div className="h-px w-24" style={{ background: "linear-gradient(to right,transparent,rgba(201,168,76,0.4))" }} />
+          <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: "2rem", fontWeight: 600, color: "#e8c96a", letterSpacing: "0.12em" }}>
+            GAME CENTER
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+          <div className="h-px w-24" style={{ background: "linear-gradient(to left,transparent,rgba(201,168,76,0.4))" }} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        <p style={{ fontFamily: "'Cinzel',serif", fontSize: "0.65rem", letterSpacing: "0.15em", color: "rgba(201,168,76,0.35)" }}>
+          PUZZLE GAMES · SOLVERS · GENERATORS
+        </p>
+      </div>
+
+      {/* Game cards */}
+      <div className="w-full max-w-3xl grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {GAMES.map((g) => (
+          <div
+            key={g.title}
+            style={{
+              background: "rgba(0,0,0,0.4)",
+              border: "0.5px solid rgba(201,168,76,0.15)",
+              borderRadius: 2,
+              overflow: "hidden",
+              opacity: g.status === "coming" ? 0.5 : 1,
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            {g.status === "playable" ? (
+              <Link href={g.href} style={{ textDecoration: "none", color: "inherit" }}>
+                <CardInner game={g} />
+              </Link>
+            ) : (
+              <CardInner game={g} />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <p style={{ fontFamily: "'Cinzel',serif", fontSize: "0.6rem", letterSpacing: "0.12em", color: "rgba(201,168,76,0.2)", marginTop: 64 }}>
+        MORE GAMES COMING SOON
+      </p>
+    </div>
+  );
+}
+
+function CardInner({ game }: { game: (typeof GAMES)[0] }) {
+  return (
+    <div className="p-5 flex flex-col gap-3 h-full" style={{ cursor: game.status === "playable" ? "pointer" : "default" }}>
+      <div style={{ fontSize: "2rem" }}>{game.icon}</div>
+      <div>
+        <div style={{ fontFamily: "'Cinzel',serif", fontSize: "0.9rem", fontWeight: 600, color: "#e8c96a", letterSpacing: "0.08em", marginBottom: 6 }}>
+          {game.title}
+          {game.status === "coming" && (
+            <span style={{ fontFamily: "'Cinzel',serif", fontSize: "0.55rem", letterSpacing: "0.1em", marginLeft: 8, color: "rgba(201,168,76,0.4)", verticalAlign: "middle" }}>
+              SOON
+            </span>
+          )}
         </div>
-      </main>
+        <p style={{ fontSize: "0.78rem", color: "#7a6840", lineHeight: 1.5 }}>{game.description}</p>
+      </div>
+      <div className="flex gap-1.5 flex-wrap mt-auto">
+        {game.tags.map((t) => (
+          <span key={t} style={{ fontSize: "0.6rem", fontFamily: "'Cinzel',serif", letterSpacing: "0.08em", padding: "2px 8px", border: "1px solid rgba(201,168,76,0.15)", borderRadius: 2, color: "rgba(201,168,76,0.4)" }}>
+            {t}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

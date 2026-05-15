@@ -24,6 +24,8 @@ export interface GeneratedPuzzle {
   params: PuzzleParams;
 }
 
+export type KingGameContextType = ReturnType<typeof useKingGame>;
+
 const pendingClicks = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function useKingGame() {
