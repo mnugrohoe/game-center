@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import KingsGame from "@/games/kings/components/KingsGame";
 import KingsSolver from "@/games/kings/components/KingsSolver";
 import KingsGenerator from "@/games/kings/components/KingsGenerator";
@@ -16,11 +16,6 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 export default function KingsPage() {
   const [tab, setTab] = useState<Tab>("game");
 
-  useEffect(() => {
-    const curTabs = TABS.find((t) => t.id === tab) || TABS[0];
-    document.title = `${curTabs.icon} Kings ${curTabs.label} - Game Center`;
-  }, [tab]);
-
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -28,7 +23,7 @@ export default function KingsPage() {
     >
       {/* Tab bar */}
       <nav
-        className="sticky top-0 z-50 flex justify-center gap-0"
+        className="sticky top-0 z-50 flex justify-center"
         style={{
           background: "rgba(15,14,13,0.95)",
           borderBottom: "1px solid rgba(212,152,15,0.15)",
@@ -62,7 +57,6 @@ export default function KingsPage() {
         ))}
       </nav>
 
-      {/* Content */}
       <div className="flex-1">
         {tab === "game" && <KingsGame />}
         {tab === "solver" && <KingsSolver />}

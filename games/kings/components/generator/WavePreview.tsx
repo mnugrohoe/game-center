@@ -1,6 +1,6 @@
 "use client";
 
-import { levelToDiffScore } from "../../lib/utils";
+import { levelToDiffScore } from "../../lib/difficulty";
 
 interface WavePreviewProps {
   level: number;
@@ -28,8 +28,6 @@ export function WavePreview({ level, windowSize = 40 }: WavePreviewProps) {
   return (
     <div style={{ position: "relative" }}>
       <svg
-        // width={W}
-        // height={H}
         viewBox={`0 0 ${W} ${H}`}
         className="w-full h-full"
         style={{ display: "block", overflow: "visible" }}

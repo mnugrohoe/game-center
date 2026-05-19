@@ -7,7 +7,7 @@ import { BoardStatusBar } from "./shared/BoardStatusBar";
 import { BoardControls } from "./shared/BoardControls";
 import { GeneratorPanel } from "./generator/GeneratorPanel";
 import { useGenerator } from "../hooks/useGenerator";
-import { measureRegions, DIFF_TIERS, formatTime } from "../lib/utils";
+import { measureRegions, DIFF_TIERS, formatTime } from "../lib/index";
 
 function KingsGeneratorInner() {
   const { loadPuzzle, won, elapsed, showHint, resetBoard, N } = useKingsBoardCtx();

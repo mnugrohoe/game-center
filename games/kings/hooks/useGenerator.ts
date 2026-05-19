@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { PuzzleParams } from "../lib/utils";
+import type { PuzzleParams } from "../lib/index";
 import {
   DIFF_TIERS,
   levelToDiffScore, diffScoreToParams, diffScoreToTierIdx,
   seedFromLevel, seedFromDiff,
-  mkRng, generateRegions,
-} from "../lib/utils";
+  mkRng, generateKingsRegions,
+} from "../lib/index";
 import type { GenerateResult } from "../types";
 
 export type GeneratorMode = "level" | "diff";
@@ -56,7 +56,7 @@ export function useGenerator(): UseGeneratorReturn {
 
       const rng = mkRng(seed);
       const params = diffScoreToParams(diffScore, rng);
-      const result: GenerateResult | null = generateRegions(
+      const result: GenerateResult | null = generateKingsRegions(
         params.N, rng, params.compactness, params.sizeVariance
       );
 

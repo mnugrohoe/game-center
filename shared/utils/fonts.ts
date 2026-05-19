@@ -4,6 +4,8 @@ import {
   Cinzel,
   Cinzel_Decorative,
   Lato,
+  Space_Mono,
+  Syne,
 } from "next/font/google";
 
 export const geistSans = Geist({
@@ -33,5 +35,19 @@ export const lato = Lato({
   variable: "--font-lato",
   subsets: ["latin"],
   weight: ["400", "700"],
+  fallback: ["sans-serif"],
+});
+
+export const spaceMono = Space_Mono({
+  variable: "--font-space-mono",
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  fallback: ["monospace"],
+});
+
+export const syne = Syne({
+  variable: "--font-syne",
+  subsets: ["latin"],
+  weight: ["400", "700", "800"],
   fallback: ["sans-serif"],
 });

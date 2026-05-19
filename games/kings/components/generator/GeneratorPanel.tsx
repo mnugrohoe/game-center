@@ -4,7 +4,7 @@ import {
   DIFF_TIERS,
   levelToDiffScore,
   diffScoreToTierIdx,
-} from "../../lib/utils";
+} from "../../lib/difficulty";
 import { WavePreview } from "./WavePreview";
 import type { GeneratorMode, GeneratedPuzzle } from "../../hooks/useGenerator";
 
@@ -174,11 +174,11 @@ export function GeneratorPanel({
             >
               DIFFICULTY WAVE · ±20 levels
             </div>
-            <div className="pe-8">
+            <div style={{ paddingRight: 32 }}>
               <WavePreview level={currentLevel} />
             </div>
             <div
-              className="flex justify-between mt-1 pe-8"
+              className="flex justify-between mt-1"
               style={{
                 fontSize: "0.58rem",
                 fontFamily: "'Cinzel',serif",

@@ -61,6 +61,9 @@ Connect all pipes correctly so water can flow from source to destination.
 - Sokoban
 - Maze Generator
 - Unblock Me
+- Shikaku (create area within number)
+- Mambo
+- Pipe
 
 ---
 
