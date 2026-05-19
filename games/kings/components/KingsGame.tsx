@@ -9,6 +9,8 @@ import { KingsBoard } from "./shared/KingsBoard";
 import { BoardStatusBar } from "./shared/BoardStatusBar";
 import { BoardControls } from "./shared/BoardControls";
 import { formatTime } from "../lib/index";
+import KingsTitle from "./shared/KingsTitle";
+import HowToPlay from "./HowToPlay";
 
 const PUZZLES: Record<
   string,
@@ -65,9 +67,10 @@ function KingsGameInner() {
     loadPuzzle(p.regions, p.size);
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load("easy");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cellPx = N <= 5 ? 58 : N <= 7 ? 50 : 44;
@@ -82,45 +85,11 @@ function KingsGameInner() {
       }}
     >
       {/* Header */}
-      <div className="w-full max-w-lg mb-6 text-center">
-        <div className="flex items-center justify-center gap-3 mb-1">
-          <div
-            className="h-px flex-1"
-            style={{
-              background:
-                "linear-gradient(to right,transparent,rgba(212,152,15,0.4))",
-            }}
-          />
-          <h1
-            style={{
-              fontFamily: "'Cinzel',serif",
-              letterSpacing: "0.12em",
-              fontSize: "1.5rem",
-              fontWeight: 600,
-              color: "#e4b43a",
-            }}
-          >
-            ♛ KINGS
-          </h1>
-          <div
-            className="h-px flex-1"
-            style={{
-              background:
-                "linear-gradient(to left,transparent,rgba(212,152,15,0.4))",
-            }}
-          />
-        </div>
-        <p
-          style={{
-            fontFamily: "'Cinzel',serif",
-            fontSize: "0.65rem",
-            letterSpacing: "0.15em",
-            color: "rgba(200,168,64,0.45)",
-          }}
-        >
+      <KingsTitle>
+        <span className="text-xs">
           PLACE ONE KING PER REGION · ROW · COLUMN
-        </p>
-      </div>
+        </span>
+      </KingsTitle>
 
       {/* Difficulty tabs */}
       <div className="flex gap-2 mb-5">
@@ -193,101 +162,7 @@ function KingsGameInner() {
       </div>
 
       {/* How to play */}
-      <div
-        className="w-full max-w-md rounded-sm p-4"
-        style={{
-          border: "1px solid rgba(255,255,255,0.05)",
-          background: "rgba(0,0,0,0.2)",
-        }}
-      >
-        <div
-          style={{
-            fontFamily: "'Cinzel',serif",
-            fontSize: "0.65rem",
-            color: "rgba(200,168,64,0.4)",
-            letterSpacing: "0.12em",
-            marginBottom: "12px",
-          }}
-        >
-          HOW TO PLAY
-        </div>
-        <div className="space-y-2">
-          {(
-            [
-              {
-                dot: "#555",
-                text: (
-                  <>
-                    <span style={{ color: "#e8dcc8" }}>Left click ×1</span> —
-                    pasang tanda ×
-                  </>
-                ),
-              },
-              {
-                dot: "#d4980f",
-                text: (
-                  <>
-                    <span style={{ color: "#e8dcc8" }}>Klik kanan</span> atau{" "}
-                    <span style={{ color: "#e8dcc8" }}>double klik</span> —
-                    taruh King ♛
-                  </>
-                ),
-              },
-              {
-                dot: "#333",
-                text: (
-                  <>
-                    <span style={{ color: "#e8dcc8" }}>Klik lagi</span> — hapus
-                    (King / mark)
-                  </>
-                ),
-              },
-              {
-                dot: "#1e2a1e",
-                border: "1px solid rgba(212,152,15,0.4)",
-                text: (
-                  <>
-                    Tiap{" "}
-                    <span style={{ color: "#e8dcc8" }}>warna = 1 region</span> —
-                    hanya boleh 1 King per region, baris, kolom
-                  </>
-                ),
-              },
-              {
-                dot: "rgba(212,152,15,0.3)",
-                border: "1px solid rgba(212,152,15,0.5)",
-                text: (
-                  <>
-                    <span style={{ color: "#e8dcc8" }}>
-                      Area 3×3 di sekitar King
-                    </span>{" "}
-                    — teritori eksklusif
-                  </>
-                ),
-              },
-            ] as { dot: string; border?: string; text: React.ReactNode }[]
-          ).map(({ dot, border, text }, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-2"
-              style={{ fontSize: "0.75rem", color: "#888" }}
-            >
-              <div
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: dot,
-                  border,
-                  flexShrink: 0,
-                  marginTop: 4,
-                }}
-              />
-              <span>{text}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <HowToPlay />
     </div>
   );
 }

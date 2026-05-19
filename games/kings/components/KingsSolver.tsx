@@ -4,27 +4,18 @@ import { useSolver } from "../hooks/useSolver";
 import { SolverToolbar } from "./solver/SolverToolbar";
 import { SolverGrid } from "./solver/SolverGrid";
 import { SolverControls } from "./solver/SolverControls";
+import KingsTitle from "./shared/KingsTitle";
 
 export default function KingsSolver() {
   const s = useSolver();
 
   return (
-    <div className="min-h-screen flex flex-col items-center py-8 px-4 gap-5"
-      style={{ background: "#0f0e0d", color: "#e8dcc8" }}>
-
+    <div
+      className="min-h-screen flex flex-col items-center py-8 px-4 gap-5"
+      style={{ background: "#0f0e0d", color: "#e8dcc8" }}
+    >
       {/* Header */}
-      <div className="text-center">
-        <div className="flex items-center justify-center gap-3 mb-1">
-          <div className="h-px w-16" style={{ background: "linear-gradient(to right,transparent,rgba(212,152,15,0.4))" }} />
-          <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: "1.25rem", fontWeight: 600, color: "#e4b43a", letterSpacing: "0.1em" }}>
-            ♛ KINGS SOLVER
-          </h1>
-          <div className="h-px w-16" style={{ background: "linear-gradient(to left,transparent,rgba(212,152,15,0.4))" }} />
-        </div>
-        <p style={{ fontFamily: "'Cinzel',serif", fontSize: "0.65rem", letterSpacing: "0.12em", color: "rgba(200,168,64,0.45)" }}>
-          DESIGN · PAINT · SOLVE
-        </p>
-      </div>
+      <KingsTitle>DESIGN · PAINT · SOLVE</KingsTitle>
 
       {/* Step 1 + Step 2: toolbar (size picker + region painter) */}
       <div className="w-full max-w-xl">
@@ -34,7 +25,7 @@ export default function KingsSolver() {
           setSizeInput={s.setSizeInput}
           activeRegion={s.activeRegion}
           setActiveRegion={s.setActiveRegion}
-          onBuildGrid={n => s.buildGrid(n)}
+          onBuildGrid={(n) => s.buildGrid(n)}
           onLoadExample={s.loadExample}
           onClearAll={() => s.buildGrid(s.N, false)}
           onFillFlood={s.fillFlood}

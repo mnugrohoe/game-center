@@ -8,8 +8,8 @@ interface WavePreviewProps {
 }
 
 export function WavePreview({ level, windowSize = 40 }: WavePreviewProps) {
-  const W = 320,
-    H = 52;
+  const W = 320;
+  const H = 52;
   const half = Math.floor(windowSize / 2);
   const points: string[] = [];
 
