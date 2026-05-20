@@ -1,6 +1,8 @@
 "use client";
 
-import { levelToDiffScore } from "../../lib/difficulty";
+import { levelToDiffScore } from "@/shared/algorithms";
+import { FaArrowLeft, FaArrowRight } from "react-icons/fa6";
+import { cinzel } from "../utils/fonts";
 
 interface WavePreviewProps {
   level: number;
@@ -94,6 +96,40 @@ export function WavePreview({ level, windowSize = 40 }: WavePreviewProps) {
         <span>9</span>
         <span>5</span>
         <span>1</span>
+      </div>
+    </div>
+  );
+}
+
+export default function WavePreviewComponent({
+  currentLevel,
+}: {
+  currentLevel: number;
+}) {
+  return (
+    <div>
+      <div
+        className={`${cinzel.className} text-[0.58rem] tracking-widest text-[#5a4820] mb-1.5`}
+      >
+        DIFFICULTY WAVE · ±20 levels
+      </div>
+      <div className="pr-6">
+        <WavePreview level={currentLevel} />
+        <div className="relative justify-between mt-1 text-[#684f17] text-[0.58rem] tracking-wide ">
+          <span className="absolute left-0">
+            lvl {Math.max(1, currentLevel - 20)}
+          </span>
+          <span className="text-[#c9a84c] absolute left-1/2 -translate-x-1/2 flex items-center gap-1">
+            <span>
+              <FaArrowLeft />
+            </span>
+            <span className="mx-1">now</span>
+            <span>
+              <FaArrowRight />
+            </span>
+          </span>
+          <span className="absolute right-0">lvl {currentLevel + 20}</span>
+        </div>
       </div>
     </div>
   );

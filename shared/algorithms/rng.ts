@@ -38,7 +38,8 @@ export function mkRng(seed: number): RngFn {
  * @param arr - Array to shuffle in-place.
  * @param rng - Seeded RNG function.
  */
-export function shuffle<T>(arr: T[], rng: RngFn): T[] {
+export function shuffle<T>(arr: T[], rng?: RngFn): T[] {
+  if (!rng) rng = Math.random;
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];

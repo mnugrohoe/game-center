@@ -1,55 +1,5 @@
 import type { GenerateResult } from "./types";
 
-// ─── RNG ─────────────────────────────────────────────────────────────────────
-
-export function mkRng(seed: number) {
-  let s = seed >>> 0;
-  return () => {
-    s += 0x6d2b79f5;
-    let t = Math.imul(s ^ (s >>> 15), 1 | s);
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-export function shuffle<T>(arr: T[], rng: () => number): T[] {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-// ─── Wave Difficulty System ───────────────────────────────────────────────────
-//
-// Difficulty score 1–9 for a given level:
-//   base  = log curve (1 at lvl1, ~7.5 at lvl1000)
-//   wave  = 3 overlapping sine waves → oscillates up/down (the wave effect)
-//   noise = per-level deterministic nudge so same level = same score
-//
-// The wave makes the difficulty non-monotonic: late levels can dip easy,
-// early levels can briefly spike hard. But the log envelope ensures
-// the overall difficulty still rises.
-
-export function levelToDiffScore(level: number): number {
-  const base = 1 + (6.5 * Math.log(level)) / Math.log(1000);
-  const wave =
-    0.9 * Math.sin(level * 0.31 + 1.1) +
-    0.5 * Math.sin(level * 0.07 + 2.3) +
-    0.3 * Math.sin(level * 0.013 + 0.7);
-  const rng = mkRng((level * 2654435761) ^ 0xc0ffee);
-  const noise = (rng() - 0.5) * 1.2;
-  return Math.max(1, Math.min(9, base + wave + noise));
-}
-
-export function diffScoreToTierIdx(score: number): number {
-  return Math.max(0, Math.min(8, Math.round(score) - 1));
-}
-
-export function levelToTierIdx(level: number): number {
-  return diffScoreToTierIdx(levelToDiffScore(level));
-}
-
 // ─── Puzzle Parameters ────────────────────────────────────────────────────────
 
 export interface PuzzleParams {

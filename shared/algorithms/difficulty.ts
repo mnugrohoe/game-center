@@ -15,7 +15,7 @@
  *
  *   const score = waveDifficulty({ level: 42 }); // 1.0–9.0
  */
-
+import { DiffTier } from "@/games/kings/lib/utils";
 import { mkRng } from "./rng";
 
 // ─── Core wave difficulty ──────────────────────────────────────────────────────
@@ -66,7 +66,8 @@ export function waveDifficulty(opts: WaveDifficultyOptions): number {
   const range = maxScore - minScore;
 
   // Logarithmic base: minScore at level 1, approaching maxScore at logBase
-  const base = minScore + range * Math.log(Math.max(1, level)) / Math.log(logBase);
+  const base =
+    minScore + (range * Math.log(Math.max(1, level))) / Math.log(logBase);
 
   // Three overlapping sine waves at different frequencies + phase offsets
   const wave =
@@ -90,7 +91,11 @@ export function waveDifficulty(opts: WaveDifficultyOptions): number {
  * @param minScore - Lower bound of score range.
  * @param maxScore - Upper bound of score range.
  */
-export function normalizeScore(score: number, minScore = 1, maxScore = 9): number {
+export function normalizeScore(
+  score: number,
+  minScore = 1,
+  maxScore = 9,
+): number {
   return (score - minScore) / (maxScore - minScore);
 }
 
@@ -106,7 +111,7 @@ export function scoreTToierIdx(
   score: number,
   numTiers: number,
   minScore = 1,
-  maxScore = 9
+  maxScore = 9,
 ): number {
   const norm = normalizeScore(score, minScore, maxScore);
   return Math.max(0, Math.min(numTiers - 1, Math.floor(norm * numTiers)));
@@ -124,7 +129,7 @@ export function scoreTToierIdx(
 export function sampleWave(
   centerLevel: number,
   halfWindow = 20,
-  opts: Omit<WaveDifficultyOptions, "level"> = {}
+  opts: Omit<WaveDifficultyOptions, "level"> = {},
 ): { level: number; score: number }[] {
   const result: { level: number; score: number }[] = [];
   for (let i = -halfWindow; i <= halfWindow; i++) {
@@ -154,4 +159,48 @@ export function lerp(a: number, b: number, t: number): number {
  */
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+// ─── Score → tier ─────────────────────────────────────────────────────────────
+
+/**
+ * Converts a difficulty score to a tier index.
+ *
+ * @param score       - Raw difficulty score.
+ * @param diff_length - Total number of tiers.
+ * @returns Tier index in [0, diff_length - 1].
+ *
+ * @example
+ *   const score = waveDifficulty({ level: 42 });
+ *   const tierIdx = diffScoreToTierIdx(score, 5); // 5 tiers total
+ */
+export function diffScoreToTierIdx(score: number, diff_length: number): number {
+  return scoreTToierIdx(score, diff_length);
+}
+
+/**
+ * Converts a level number to a difficulty score (1–9) using the waveDifficulty function.
+ *
+ * @param level - The level number (1-based).
+ * @returns Difficulty score in the range [1, 9].
+ *
+ * @example
+ *   const score = levelToDiffScore(42); // 1.0–9.0
+ */
+export function levelToDiffScore(level: number): number {
+  return waveDifficulty({ level });
+}
+
+/**
+ * Converts a level number to a tier index based on its difficulty score.
+ *
+ * @param level       - The level number (1-based).
+ * @param diff_length - Total number of tiers.
+ * @returns Tier index in [0, diff_length - 1].
+ *
+ * @example
+ *   const tierIdx = levelToTierIdx(42, 5); // 5 tiers total
+ */
+export function levelToTierIdx(level: number, diff_length: number): number {
+  return diffScoreToTierIdx(levelToDiffScore(level), diff_length);
 }

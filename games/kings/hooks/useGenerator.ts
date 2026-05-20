@@ -4,11 +4,14 @@ import { useState, useCallback } from "react";
 import type { PuzzleParams } from "../lib/index";
 import {
   DIFF_TIERS,
-  levelToDiffScore, diffScoreToParams, diffScoreToTierIdx,
-  seedFromLevel, seedFromDiff,
-  mkRng, generateKingsRegions,
+  diffScoreToParams,
+  seedFromLevel,
+  seedFromDiff,
+  mkRng,
+  generateKingsRegions,
 } from "../lib/index";
 import type { GenerateResult } from "../types";
+import { diffScoreToTierIdx, levelToDiffScore } from "@/shared/algorithms";
 
 export type GeneratorMode = "level" | "diff";
 
@@ -57,7 +60,10 @@ export function useGenerator(): UseGeneratorReturn {
       const rng = mkRng(seed);
       const params = diffScoreToParams(diffScore, rng);
       const result: GenerateResult | null = generateKingsRegions(
-        params.N, rng, params.compactness, params.sizeVariance
+        params.N,
+        rng,
+        params.compactness,
+        params.sizeVariance,
       );
 
       setGenerating(false);
@@ -71,17 +77,21 @@ export function useGenerator(): UseGeneratorReturn {
         solution: result.solution,
         N: params.N,
         diffScore,
-        tierIdx: diffScoreToTierIdx(diffScore),
+        tierIdx: diffScoreToTierIdx(diffScore, DIFF_TIERS.length),
         params,
       });
     }, 50);
   }, [mode, currentLevel, selectedTier]);
 
   return {
-    mode, setMode,
-    currentLevel, setCurrentLevel,
-    selectedTier, setSelectedTier,
-    generating, puzzle,
+    mode,
+    setMode,
+    currentLevel,
+    setCurrentLevel,
+    selectedTier,
+    setSelectedTier,
+    generating,
+    puzzle,
     generate,
   };
 }
