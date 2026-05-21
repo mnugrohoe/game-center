@@ -4,7 +4,7 @@ import { useSolver } from "../hooks/useSolver";
 import { SolverToolbar } from "./solver/SolverToolbar";
 import { SolverGrid } from "./solver/SolverGrid";
 import { SolverControls } from "./solver/SolverControls";
-import KingsTitle from "./shared/KingsTitle";
+import { KingsTitle } from "./shared/KingsTitle";
 
 export default function KingsSolver() {
   const s = useSolver();

@@ -1,55 +1,195 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────
+   GAME CENTER — Design System
+   Single source of truth. No hardcoded hex values anywhere else.
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Raw color palette ────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Backgrounds */
+  --color-bg:         #0a0908;
+  --color-bg-surface: #111009;
+  --color-bg-raised:  #1a1814;
+
+  /* Gold scale */
+  --color-gold-100: #e8c96a;
+  --color-gold-200: #c9a84c;
+  --color-gold-300: #a08030;
+  --color-gold-400: #5a4820;
+  --color-gold-500: rgba(201,168,76,0.35);
+  --color-gold-600: rgba(201,168,76,0.15);
+  --color-gold-700: rgba(201,168,76,0.08);
+
+  /* Text */
+  --color-text-primary:   #e8dcc8;
+  --color-text-secondary: #a08860;
+  --color-text-muted:     #5a4820;
+  --color-text-ghost:     rgba(212,196,154,0.3);
+
+  /* Status */
+  --color-ok:      #7ed4a0;
+  --color-ok-bg:   rgba(70,180,100,0.08);
+  --color-ok-rim:  rgba(70,180,100,0.4);
+  --color-err:     #ee8888;
+  --color-err-bg:  rgba(200,70,70,0.08);
+  --color-err-rim: rgba(200,70,70,0.4);
+
+  /* Typography */
+  --font-display: "Cinzel Decorative", serif;
+  --font-ui:      "Cinzel", serif;
+  --font-mono:    "Space Mono", monospace;
+
+  /* Shape */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
 }
 
+/* ── Tailwind v4 theme extension ─────────────────────────────
+   Maps CSS vars → Tailwind utility classes.
+   bg-surface, text-gold-200, border-gold-500, font-ui, etc.
+   ─────────────────────────────────────────────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background:  var(--color-bg);
+  --color-foreground:  var(--color-text-primary);
+
+  --color-bg:          var(--color-bg);
+  --color-surface:     var(--color-bg-surface);
+  --color-raised:      var(--color-bg-raised);
+
+  --color-gold-100:    var(--color-gold-100);
+  --color-gold-200:    var(--color-gold-200);
+  --color-gold-300:    var(--color-gold-300);
+  --color-gold-400:    var(--color-gold-400);
+  --color-gold-500:    var(--color-gold-500);
+  --color-gold-600:    var(--color-gold-600);
+  --color-gold-700:    var(--color-gold-700);
+
+  --color-primary:     var(--color-text-primary);
+  --color-secondary:   var(--color-text-secondary);
+  --color-muted:       var(--color-text-muted);
+  --color-ghost:       var(--color-text-ghost);
+
+  --color-ok:          var(--color-ok);
+  --color-ok-bg:       var(--color-ok-bg);
+  --color-ok-rim:      var(--color-ok-rim);
+  --color-err:         var(--color-err);
+  --color-err-bg:      var(--color-err-bg);
+  --color-err-rim:     var(--color-err-rim);
+
+  --font-display:      var(--font-display);
+  --font-ui:           var(--font-ui);
+  --font-mono:         var(--font-mono);
+
+  --radius-xs:         var(--radius-xs);
+  --radius-sm:         var(--radius-sm);
+  --radius-md:         var(--radius-md);
+  --radius-lg:         var(--radius-lg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* ── Base ─────────────────────────────────────────────────── */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
 }
 
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-gold-500); border-radius: 2px; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Number input — hide arrows ───────────────────────────── */
 input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-}
-input[type="number"] {
-  -moz-appearance: textfield;
-}
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+input[type="number"] { -moz-appearance: textfield; }
 
-::-webkit-scrollbar {
-  width: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #3a2e10;
-  border-radius: 2px;
-}
+/* ── Keyframes ────────────────────────────────────────────── */
+@keyframes spin     { to { transform: rotate(360deg); } }
+@keyframes gc-pulse { 0%,100%{opacity:.18;transform:scale(1)} 50%{opacity:.32;transform:scale(1.05)} }
+@keyframes gc-fadein{ from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:none} }
+@keyframes gc-err   { 0%{transform:scale(1)} 35%{transform:scale(1.06)} 100%{transform:scale(1)} }
 
-/* Hide scrollbar */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
+/* ── Shared component classes ─────────────────────────────── */
+/*  Write class="btn-control" instead of repeating 12 classes  */
+@layer components {
 
-.no-scrollbar {
-  -ms-overflow-style: none; /* IE & Edge */
-  scrollbar-width: none; /* Firefox */
+  /* ── Buttons ── */
+
+  .btn-control {
+    @apply font-ui text-[0.68rem] tracking-[0.09em]
+           px-[18px] py-2 rounded-xs
+           border border-gold-500 bg-gold-700 text-gold-200
+           cursor-pointer transition-all duration-150
+           hover:border-gold-200 hover:text-gold-100
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-action {
+    @apply font-ui text-[0.78rem] tracking-[0.09em]
+           px-5 py-[10px] rounded-xs
+           border border-[rgba(201,168,76,0.55)] bg-[rgba(201,168,76,0.15)]
+           text-gold-100 cursor-pointer transition-all duration-150
+           flex items-center justify-center gap-2
+           hover:bg-[rgba(201,168,76,0.25)]
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply font-mono text-[0.7rem] font-bold
+           px-3 py-[6px] rounded-sm
+           border border-gold-600 bg-transparent text-muted
+           cursor-pointer transition-all duration-150
+           hover:border-gold-500 hover:text-secondary;
+  }
+
+  /* ── Status chips / badges ── */
+
+  .chip {
+    @apply font-ui text-[0.62rem] tracking-wide
+           px-[10px] py-[3px] rounded-xs border leading-none;
+  }
+  .chip-gold  { @apply border-gold-500 bg-gold-700  text-gold-200; }
+  .chip-ok    { @apply border-ok-rim   bg-ok-bg     text-ok;       }
+  .chip-err   { @apply border-err-rim  bg-err-bg    text-err;      }
+  .chip-ghost { @apply border-gold-600 bg-transparent text-muted;  }
+
+  /* ── Layout panels ── */
+
+  .panel {
+    @apply bg-surface border border-gold-600 rounded-xs p-5;
+  }
+
+  .panel-label {
+    @apply font-ui text-[0.65rem] tracking-[0.12em] text-gold-400 mb-3;
+  }
+
+  /* ── Divider with label ── */
+  .divider-label {
+    @apply flex items-center gap-3 font-ui text-[0.65rem]
+           tracking-[0.1em] text-muted;
+  }
+  .divider-label::before,
+  .divider-label::after {
+    content: "";
+    @apply flex-1 h-px bg-gold-600;
+  }
+
+  /* ── Tab nav button ── */
+  .tab-btn {
+    @apply font-ui text-[0.7rem] tracking-widest
+           px-7 py-3 border-b-2 border-transparent
+           bg-transparent text-gold-500
+           cursor-pointer transition-all duration-200
+           flex items-center gap-1.5
+           hover:text-gold-300;
+  }
+  .tab-btn-active {
+    @apply border-gold-200 text-gold-200;
+  }
 }

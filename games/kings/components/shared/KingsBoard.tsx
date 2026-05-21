@@ -1,25 +1,24 @@
 "use client";
-
+/**
+ * games/kings/components/shared/KingsBoard.tsx
+ *
+ * The interactive board grid.
+ * - Static structure → Tailwind classes
+ * - Dynamic colors (region fills, conflict) → inline style with CSS vars
+ */
 import { useKingsBoardCtx } from "../../context/KingsBoardContext";
-import { calcHasConflict } from "../../hooks/useKingsBoard";
-import { REG_FILL } from "../../lib/constants";
+import { calcHasConflict }  from "../../hooks/useKingsBoard";
+import { REG_FILL }         from "../../lib/constants";
 
 interface KingsBoardProps {
   cellPx: number;
-  ctx: ReturnType<typeof useKingsBoardCtx>;
 }
 
-export function KingsBoard({ cellPx, ctx }: KingsBoardProps) {
+export function KingsBoard({ cellPx }: KingsBoardProps) {
   const {
-    grid,
-    N,
-    cellStates,
-    autoLocked,
-    territory,
-    handleLeftClick,
-    handleDoubleClick,
-    handleRightClick,
-  } = ctx;
+    grid, N, cellStates, autoLocked, territory,
+    handleLeftClick, handleDoubleClick, handleRightClick,
+  } = useKingsBoardCtx();
 
   if (!grid || N === 0) return null;
 
@@ -32,18 +31,17 @@ export function KingsBoard({ cellPx, ctx }: KingsBoardProps) {
     >
       {Array.from({ length: N }, (_, r) =>
         Array.from({ length: N }, (_, c) => {
-          const reg = grid[r][c];
-          const borders = {
-            top: r === 0 || grid[r - 1]?.[c] !== reg,
-            bottom: r === N - 1 || grid[r + 1]?.[c] !== reg,
-            left: c === 0 || grid[r]?.[c - 1] !== reg,
-            right: c === N - 1 || grid[r]?.[c + 1] !== reg,
-          };
-          const st = cellStates[r]?.[c] ?? 0;
-          const locked = autoLocked[r]?.[c];
-          const inTerr = territory[r]?.[c];
-          const conflict =
-            st === 2 && calcHasConflict(cellStates, grid, r, c, N);
+          const reg      = grid[r][c];
+          const st       = cellStates[r]?.[c] ?? 0;
+          const locked   = autoLocked[r]?.[c];
+          const inTerr   = territory[r]?.[c];
+          const conflict = st === 2 && calcHasConflict(cellStates, grid, r, c, N);
+
+          // Region border: bold gold where region changes, hairline otherwise
+          const bTop    = r === 0         || grid[r-1]?.[c] !== reg;
+          const bBottom = r === N - 1     || grid[r+1]?.[c] !== reg;
+          const bLeft   = c === 0         || grid[r]?.[c-1] !== reg;
+          const bRight  = c === N - 1     || grid[r]?.[c+1] !== reg;
 
           return (
             <div
@@ -52,77 +50,49 @@ export function KingsBoard({ cellPx, ctx }: KingsBoardProps) {
               onClick={() => handleLeftClick(r, c)}
               onDoubleClick={() => handleDoubleClick(r, c)}
               onContextMenu={(e) => handleRightClick(e, r, c)}
+              className={[
+                "relative flex items-center justify-center select-none",
+                locked && st === 0 ? "cursor-default" : "cursor-pointer",
+              ].join(" ")}
               style={{
-                width: cellPx,
-                height: cellPx,
-                background: conflict ? "#250e0e" : REG_FILL[reg % 12],
-                border: "0.5px solid rgba(255,255,255,0.04)",
-                borderTop: borders.top
-                  ? "2.5px solid rgba(201,168,76,0.55)"
-                  : undefined,
-                borderBottom: borders.bottom
-                  ? "2.5px solid rgba(201,168,76,0.55)"
-                  : undefined,
-                borderLeft: borders.left
-                  ? "2.5px solid rgba(201,168,76,0.55)"
-                  : undefined,
-                borderRight: borders.right
-                  ? "2.5px solid rgba(201,168,76,0.55)"
-                  : undefined,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: locked && st === 0 ? "default" : "pointer",
-                position: "relative",
-                userSelect: "none",
-                transition: "filter 0.1s, box-shadow 0.2s",
+                width:        cellPx,
+                height:       cellPx,
+                background:   conflict ? "#250e0e" : REG_FILL[reg % 12],
+                border:       "0.5px solid rgba(255,255,255,0.04)",
+                borderTop:    bTop    ? "2.5px solid rgba(201,168,76,0.55)" : undefined,
+                borderBottom: bBottom ? "2.5px solid rgba(201,168,76,0.55)" : undefined,
+                borderLeft:   bLeft   ? "2.5px solid rgba(201,168,76,0.55)" : undefined,
+                borderRight:  bRight  ? "2.5px solid rgba(201,168,76,0.55)" : undefined,
+                transition:   "filter 0.1s",
               }}
             >
+              {/* Territory tint */}
               {inTerr && st === 0 && !locked && (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    background: "rgba(201,168,76,0.07)",
-                    pointerEvents: "none",
-                  }}
-                />
+                <div className="absolute inset-0 bg-gold-700 pointer-events-none" />
               )}
+
+              {/* Auto-locked dot */}
               {locked && st === 0 && (
-                <span
-                  style={{
-                    fontSize: "1.4rem",
-                    color: "rgba(255,255,255,0.18)",
-                  }}
-                >
-                  ·
-                </span>
+                <span className="text-[1.4rem] text-ghost">·</span>
               )}
+
+              {/* Mark × */}
               {st === 1 && (
-                <span
-                  style={{
-                    fontSize: "0.85rem",
-                    color: "rgba(212,196,154,0.3)",
-                    fontWeight: 700,
-                  }}
-                >
-                  ✕
-                </span>
+                <span className="text-[0.85rem] font-bold text-ghost">✕</span>
               )}
+
+              {/* King ♛ */}
               {st === 2 && (
                 <span
-                  style={{
-                    fontSize: "1.3rem",
-                    color: "#e8c96a",
-                    textShadow: "0 0 8px rgba(201,168,76,0.8)",
-                  }}
+                  className="text-[1.3rem] text-gold-100"
+                  style={{ textShadow: "0 0 8px rgba(201,168,76,0.8)" }}
                 >
                   ♛
                 </span>
               )}
             </div>
           );
-        }),
+        })
       )}
     </div>
   );

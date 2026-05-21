@@ -1,19 +1,19 @@
 /**
- * Kings algorithm barrel.
- * Re-exports all Kings-specific lib modules.
+ * games/kings/lib/index.ts
  *
- * Also re-exports the shared algorithms used most often in Kings,
- * so existing code importing from "@/games/kings/lib/index" can
- * migrate incrementally to the specific modules.
+ * Barrel for all Kings algorithm modules.
+ * Game components import from here — not from individual lib files.
+ *
+ * @example
+ *   import { DIFF_TIERS, solveKings, measureRegions, formatTime } from "@/games/kings/lib";
  */
-
 export * from "./constants";
 export * from "./difficulty";
 export * from "./generator";
 export * from "./metrics";
 export * from "./solver";
 
-// Convenience re-exports from shared (most commonly used in Kings)
-export { formatTime, formatScore } from "@/shared/algorithms/formatting";
-export { getRegionBorders } from "@/shared/algorithms/grid";
-export { mkRng, shuffle, seedFromLevel, seedFromDiff } from "@/shared/algorithms/rng";
+// Convenience re-exports of shared utils most used by Kings
+export { formatTime, formatScore }       from "@/shared/algorithms/formatting";
+export { getRegionBorders }              from "@/shared/algorithms/grid";
+export { mkRng, seedFromLevel, seedFromDiff } from "@/shared/algorithms/rng";

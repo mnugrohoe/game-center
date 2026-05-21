@@ -1,7 +1,7 @@
 "use client";
 
 import type { StatusType } from "../../hooks/useSolver";
-import HowToPlay from "../HowToPlay";
+import { HowToPlay } from "../HowToPlay";
 
 const STATUS_STYLE: Record<
   StatusType,

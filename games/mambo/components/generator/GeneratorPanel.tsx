@@ -6,7 +6,7 @@ import {
   levelToTierIdx,
 } from "../../lib/difficulty";
 import { DiffPicker } from "../shared/DiffPicker";
-import { WavePreview } from "@/shared/component/WavePreview";
+import { WavePreview } from "@/shared/components";
 import type { GeneratorMode } from "../../types";
 
 interface GeneratorPanelProps {

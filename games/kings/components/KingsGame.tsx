@@ -1,21 +1,25 @@
 "use client";
-
+/**
+ * games/kings/components/KingsGame.tsx
+ * Uses shared: PageLayout (via parent), WinBanner, ControlButton.
+ * Uses local: KingsBoard, BoardStatusBar, BoardControls, HowToPlay.
+ */
 import { useState, useEffect } from "react";
 import {
   KingsBoardProvider,
   useKingsBoardCtx,
 } from "../context/KingsBoardContext";
+import { WinBanner } from "@/shared/components";
 import { KingsBoard } from "./shared/KingsBoard";
 import { BoardStatusBar } from "./shared/BoardStatusBar";
 import { BoardControls } from "./shared/BoardControls";
-import { formatTime } from "../lib/index";
-import KingsTitle from "./shared/KingsTitle";
-import HowToPlay from "./HowToPlay";
+import { KingsTitle } from "./shared/KingsTitle";
+import { HowToPlay } from "./HowToPlay";
+import { formatTime } from "@/games/kings/lib";
 
-const PUZZLES: Record<
-  string,
-  { label: string; size: number; regions: number[][] }
-> = {
+// ── Static built-in puzzles ───────────────────────────────────────────────────
+
+const PUZZLES = {
   easy: {
     label: "EASY · 5×5",
     size: 5,
@@ -55,113 +59,66 @@ const PUZZLES: Record<
       [6, 6, 8, 8, 8, 7, 7, 7, 7],
     ],
   },
-};
+} as const;
+
+type Diff = keyof typeof PUZZLES;
+
+// ── Inner component (needs context) ──────────────────────────────────────────
 
 function KingsGameInner() {
   const { loadPuzzle, won, elapsed, N } = useKingsBoardCtx();
-  const [diff, setDiff] = useState("easy");
+  const [diff, setDiff] = useState<Diff>("easy");
 
-  const load = (d: string) => {
-    const p = PUZZLES[d];
+  function load(d: Diff) {
     setDiff(d);
-    loadPuzzle(p.regions, p.size);
-  };
+    loadPuzzle(PUZZLES[d].regions as number[][], PUZZLES[d].size);
+  }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     load("easy");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cellPx = N <= 5 ? 58 : N <= 7 ? 50 : 44;
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center py-8 px-4"
-      style={{
-        background:
-          "linear-gradient(135deg,#1a1814 0%,#0f0e0d 50%,#161410 100%)",
-        color: "#e8dcc8",
-      }}
-    >
-      {/* Header */}
-      <KingsTitle>
-        <span className="text-xs">
-          PLACE ONE KING PER REGION · ROW · COLUMN
-        </span>
-      </KingsTitle>
+    <div className="min-h-screen flex flex-col items-center py-8 px-4 gap-5 bg-raised">
+      <KingsTitle>PLACE ONE KING PER REGION · ROW · COLUMN</KingsTitle>
 
       {/* Difficulty tabs */}
-      <div className="flex gap-2 mb-5">
-        {Object.entries(PUZZLES).map(([key, p]) => (
+      <div className="flex gap-2">
+        {(Object.keys(PUZZLES) as Diff[]).map((key) => (
           <button
             key={key}
             onClick={() => load(key)}
-            style={{
-              fontFamily: "'Cinzel',serif",
-              fontSize: "0.65rem",
-              letterSpacing: "0.1em",
-              padding: "4px 14px",
-              borderRadius: "999px",
-              cursor: "pointer",
-              transition: "all 0.2s",
-              border:
-                diff === key
-                  ? "1px solid rgba(212,152,15,0.6)"
-                  : "1px solid rgba(212,152,15,0.2)",
-              background:
-                diff === key ? "rgba(212,152,15,0.15)" : "transparent",
-              color: diff === key ? "#d4980f" : "#7a6840",
-            }}
+            className={[
+              "font-ui text-[0.65rem] tracking-[0.1em] px-4 py-1.5 rounded-full",
+              "border cursor-pointer transition-all duration-200",
+              diff === key
+                ? "border-gold-200 bg-gold-700 text-gold-200"
+                : "border-gold-600 bg-transparent text-muted hover:border-gold-500 hover:text-secondary",
+            ].join(" ")}
           >
-            {p.label}
+            {PUZZLES[key].label}
           </button>
         ))}
       </div>
 
-      <div className="mb-4">
-        <BoardStatusBar />
+      <BoardStatusBar />
+
+      {/* Board */}
+      <div className="p-1.5 rounded-xs border border-gold-600 bg-black/35">
+        <KingsBoard cellPx={cellPx} />
       </div>
 
-      <div
-        className="mb-5 p-1.5 rounded-sm"
-        style={{
-          border: "1px solid rgba(212,152,15,0.2)",
-          background: "rgba(0,0,0,0.35)",
-        }}
-      >
-        <KingsBoard cellPx={cellPx} ctx={useKingsBoardCtx()} />
-      </div>
-
+      {/* Win banner */}
       {won && (
-        <div
-          className="mb-4 px-6 py-3 text-center rounded-sm"
-          style={{
-            border: "1px solid rgba(212,152,15,0.5)",
-            background: "rgba(212,152,15,0.1)",
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "'Cinzel',serif",
-              color: "#e4b43a",
-              fontSize: "0.875rem",
-              letterSpacing: "0.1em",
-            }}
-          >
-            ⚜ PUZZLE SOLVED ⚜
-          </div>
-          <div style={{ color: "#888", fontSize: "0.75rem", marginTop: "4px" }}>
-            Solved in {formatTime(elapsed)}
-          </div>
-        </div>
+        <WinBanner
+          detail={`Solved in ${formatTime(elapsed)} · ${PUZZLES[diff].label}`}
+        />
       )}
 
-      <div className="mb-6">
-        <BoardControls onReset={() => load(diff)} />
-      </div>
+      <BoardControls onReset={() => load(diff)} />
 
-      {/* How to play */}
       <HowToPlay />
     </div>
   );

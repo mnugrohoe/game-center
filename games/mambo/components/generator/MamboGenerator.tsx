@@ -5,7 +5,7 @@ import type { MamboPuzzle } from "../../types";
 import { useGenerator } from "../../hooks/useGenerator";
 import { GeneratorPanel } from "./GeneratorPanel";
 import { PlayableBoard } from "../shared/PlayableBoard";
-import MamboTitle from "../shared/MamboTitle";
+import { MamboTitle } from "../shared/MamboTitle";
 
 export default function MamboGenerator() {
   const gen = useGenerator();

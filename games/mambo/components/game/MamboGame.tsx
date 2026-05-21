@@ -6,7 +6,7 @@ import { DIFF_TIERS } from "../../lib/difficulty";
 import { generateMamboPuzzle } from "../../lib/puzzle";
 import { DiffPicker } from "../shared/DiffPicker";
 import { PlayableBoard } from "../shared/PlayableBoard";
-import MamboTitle from "../shared/MamboTitle";
+import { MamboTitle } from "../shared/MamboTitle";
 
 const SUN = "☀";
 const MOON = "◑";

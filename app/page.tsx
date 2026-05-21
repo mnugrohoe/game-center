@@ -2,69 +2,71 @@ import Link from "next/link";
 
 const GAMES = [
   {
-    href: "/games/kings",
-    title: "Kings",
-    icon: "♛",
+    href:        "/games/kings",
+    title:       "Kings",
+    icon:        "♛",
     description: "Place one king per region, row, and column. No two kings may be adjacent.",
-    tags: ["Puzzle", "Logic"],
-    status: "playable",
+    tags:        ["Puzzle", "Logic"],
+    status:      "playable" as const,
   },
   {
-    href: "#",
-    title: "Water Sort",
-    icon: "🧪",
+    href:        "/games/mambo",
+    title:       "Mambo",
+    icon:        "☀",
+    description: "Fill the grid with equal suns and moons. No three identical symbols in a row.",
+    tags:        ["Logic", "Casual"],
+    status:      "playable" as const,
+  },
+  {
+    href:        "#",
+    title:       "Water Sort",
+    icon:        "🧪",
     description: "Sort colored liquids into separate bottles.",
-    tags: ["Puzzle", "Casual"],
-    status: "coming",
+    tags:        ["Puzzle", "Casual"],
+    status:      "coming" as const,
   },
   {
-    href: "#",
-    title: "Connect Pipe",
-    icon: "🔧",
+    href:        "#",
+    title:       "Connect Pipe",
+    icon:        "🔧",
     description: "Connect all pipes so water flows from source to destination.",
-    tags: ["Puzzle", "Logic"],
-    status: "coming",
+    tags:        ["Puzzle", "Logic"],
+    status:      "coming" as const,
   },
-];
+] as const;
 
 export default function Home() {
   return (
-    <div
-      className="min-h-screen flex flex-col items-center py-16 px-6"
-      style={{
-        background: "linear-gradient(135deg,#0f0e0d 0%,#161410 60%,#0a0908 100%)",
-        color: "#d4c49a",
-      }}
-    >
+    <div className="min-h-screen flex flex-col items-center py-16 px-6 bg-bg">
+
       {/* Header */}
-      <div className="text-center mb-14">
-        <div className="flex items-center justify-center gap-4 mb-3">
-          <div className="h-px w-24" style={{ background: "linear-gradient(to right,transparent,rgba(201,168,76,0.4))" }} />
-          <h1 style={{ fontFamily: "'Cinzel',serif", fontSize: "2rem", fontWeight: 600, color: "#e8c96a", letterSpacing: "0.12em" }}>
+      <header className="text-center mb-14">
+        <div className="flex items-center justify-center gap-4 mb-2">
+          <div className="h-px w-20 bg-gradient-to-r from-transparent to-gold-500" />
+          <h1 className="font-display text-3xl font-bold text-gold-100 tracking-[0.12em]">
             GAME CENTER
           </h1>
-          <div className="h-px w-24" style={{ background: "linear-gradient(to left,transparent,rgba(201,168,76,0.4))" }} />
+          <div className="h-px w-20 bg-gradient-to-l from-transparent to-gold-500" />
         </div>
-        <p style={{ fontFamily: "'Cinzel',serif", fontSize: "0.65rem", letterSpacing: "0.15em", color: "rgba(201,168,76,0.35)" }}>
+        <p className="font-ui text-[0.6rem] tracking-[0.18em] text-gold-500">
           PUZZLE GAMES · SOLVERS · GENERATORS
         </p>
-      </div>
+      </header>
 
-      {/* Game cards */}
-      <div className="w-full max-w-3xl grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Cards grid */}
+      <div className="w-full max-w-3xl grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
         {GAMES.map((g) => (
           <div
             key={g.title}
-            style={{
-              background: "rgba(0,0,0,0.4)",
-              border: "0.5px solid rgba(201,168,76,0.15)",
-              borderRadius: 2,
-              overflow: "hidden",
-              opacity: g.status === "coming" ? 0.5 : 1,
-            }}
+            className={[
+              "panel transition-all duration-200",
+              g.status === "playable"
+                ? "hover:border-gold-500 hover:-translate-y-0.5 cursor-pointer"
+                : "opacity-50 cursor-default",
+            ].join(" ")}
           >
             {g.status === "playable" ? (
-              <Link href={g.href} style={{ textDecoration: "none", color: "inherit" }}>
+              <Link href={g.href} className="block no-underline text-inherit">
                 <CardInner game={g} />
               </Link>
             ) : (
@@ -74,32 +76,36 @@ export default function Home() {
         ))}
       </div>
 
-      <p style={{ fontFamily: "'Cinzel',serif", fontSize: "0.6rem", letterSpacing: "0.12em", color: "rgba(201,168,76,0.2)", marginTop: 64 }}>
+      <p className="font-ui text-[0.55rem] tracking-[0.14em] text-gold-600 mt-16">
         MORE GAMES COMING SOON
       </p>
     </div>
   );
 }
 
-function CardInner({ game }: { game: (typeof GAMES)[0] }) {
+function CardInner({ game }: { game: (typeof GAMES)[number] }) {
   return (
-    <div className="p-5 flex flex-col gap-3 h-full" style={{ cursor: game.status === "playable" ? "pointer" : "default" }}>
-      <div style={{ fontSize: "2rem" }}>{game.icon}</div>
+    <div className="flex flex-col gap-3 h-full">
+      <span className="text-3xl leading-none">{game.icon}</span>
+
       <div>
-        <div style={{ fontFamily: "'Cinzel',serif", fontSize: "0.9rem", fontWeight: 600, color: "#e8c96a", letterSpacing: "0.08em", marginBottom: 6 }}>
-          {game.title}
+        <div className="flex items-center gap-2 mb-1">
+          <h2 className="font-ui text-[0.9rem] font-semibold text-gold-100 tracking-[0.08em]">
+            {game.title}
+          </h2>
           {game.status === "coming" && (
-            <span style={{ fontFamily: "'Cinzel',serif", fontSize: "0.55rem", letterSpacing: "0.1em", marginLeft: 8, color: "rgba(201,168,76,0.4)", verticalAlign: "middle" }}>
-              SOON
-            </span>
+            <span className="chip chip-ghost text-[0.5rem]">SOON</span>
           )}
         </div>
-        <p style={{ fontSize: "0.78rem", color: "#7a6840", lineHeight: 1.5 }}>{game.description}</p>
+        <p className="font-mono text-[0.75rem] text-secondary leading-relaxed">
+          {game.description}
+        </p>
       </div>
+
       <div className="flex gap-1.5 flex-wrap mt-auto">
-        {game.tags.map((t) => (
-          <span key={t} style={{ fontSize: "0.6rem", fontFamily: "'Cinzel',serif", letterSpacing: "0.08em", padding: "2px 8px", border: "1px solid rgba(201,168,76,0.15)", borderRadius: 2, color: "rgba(201,168,76,0.4)" }}>
-            {t}
+        {game.tags.map((tag) => (
+          <span key={tag} className="chip chip-ghost text-[0.58rem]">
+            {tag}
           </span>
         ))}
       </div>

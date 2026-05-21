@@ -1,69 +1,62 @@
 "use client";
-
+/**
+ * games/mambo/components/shared/DiffPicker.tsx
+ * Grid of tier cards + action button.
+ * Uses shared ActionButton; tier accent colors only on dynamic parts.
+ */
 import { DIFF_TIERS } from "../../lib/difficulty";
+import { ActionButton } from "@/shared/components";
 
 interface DiffPickerProps {
-  selected: number;
-  onSelect: (id: number) => void;
+  selected:    number;
+  onSelect:    (id: number) => void;
   actionLabel: string;
-  onAction: () => void;
-  /** Per-diff play counts (index = diffId). Shown as #N badge. */
-  counters?: number[];
+  onAction:    () => void;
+  counters?:   number[];
 }
 
-export function DiffPicker({
-  selected,
-  onSelect,
-  actionLabel,
-  onAction,
-  counters,
-}: DiffPickerProps) {
+export function DiffPicker({ selected, onSelect, actionLabel, onAction, counters }: DiffPickerProps) {
   return (
     <div className="flex flex-col items-center gap-4 w-full">
+
       <div className="grid grid-cols-3 gap-2 w-full max-w-[520px]">
         {DIFF_TIERS.map((d, i) => (
           <button
             key={i}
             onClick={() => onSelect(i)}
-            className={`flex flex-col items-start text-left px-3.5 py-2.5 rounded-xl border-[1.5px] transition-all duration-150 ${
-              selected === i
-                ? "bg-[#1a1828]"
-                : "bg-[#14131e] border-[#22203a] hover:bg-[#1a1828] hover:-translate-y-px"
-            }`}
+            className={[
+              "flex flex-col items-start text-left px-3.5 py-2.5 rounded-xs",
+              "border cursor-pointer transition-all duration-150",
+              "bg-surface hover:bg-raised hover:-translate-y-px",
+            ].join(" ")}
             style={{
-              borderColor: selected === i ? d.color : undefined,
-              boxShadow:   selected === i ? `0 0 0 1px ${d.color}` : undefined,
+              borderColor: selected === i ? d.color       : "var(--color-gold-600)",
+              boxShadow:   selected === i ? `0 0 0 1px ${d.color}` : "none",
             }}
           >
             <div className="flex items-center justify-between w-full gap-1">
               <span
-                className="text-[0.9rem] font-extrabold tracking-[0.02em] leading-[1.1]"
+                className="font-ui text-[0.88rem] font-semibold tracking-[0.02em] leading-tight"
                 style={{ color: d.color }}
               >
                 {d.name}
               </span>
               {(counters?.[i] ?? 0) > 0 && (
-                <span
-                  className="font-mono text-[0.58rem] font-bold opacity-65 shrink-0"
-                  style={{ color: d.color }}
-                >
+                <span className="font-mono text-[0.56rem] font-bold opacity-60 shrink-0" style={{ color: d.color }}>
                   #{counters![i]}
                 </span>
               )}
             </div>
-            <span className="font-mono text-[0.6rem] text-[#4a4860] mt-0.5 leading-none">
+            <span className="font-mono text-[0.6rem] text-muted mt-0.5 leading-none">
               {d.sub}
             </span>
           </button>
         ))}
       </div>
 
-      <button
-        onClick={onAction}
-        className="font-['Syne',sans-serif] font-bold text-[0.82rem] px-[18px] py-2 rounded-[10px] border-none bg-gradient-to-br from-[#f5c842] to-[#ff7c6e] text-[#0c0b13] cursor-pointer transition-all hover:opacity-90 hover:-translate-y-px active:translate-y-0"
-      >
+      <ActionButton onClick={onAction}>
         {actionLabel}
-      </button>
+      </ActionButton>
     </div>
   );
 }

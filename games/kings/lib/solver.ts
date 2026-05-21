@@ -28,8 +28,7 @@ export function solveKings(grid: Grid2D, N: number): Coord[] | null {
   // Pre-group cells by region for O(1) candidate lookup
   const regionCells: Coord[][] = Array.from({ length: numRegs }, () => []);
   for (let r = 0; r < N; r++)
-    for (let c = 0; c < N; c++)
-      regionCells[grid[r][c]].push([r, c]);
+    for (let c = 0; c < N; c++) regionCells[grid[r][c]].push([r, c]);
 
   const kings: Coord[] = [];
   const usedRow = new Set<number>();
@@ -43,10 +42,10 @@ export function solveKings(grid: Grid2D, N: number): Coord[] | null {
 
     isValid: ([r, c]) => {
       // Row / col / region exclusivity
-      if (usedRow.has(r) || usedCol.has(c) || usedReg.has(grid[r][c])) return false;
+      if (usedRow.has(r) || usedCol.has(c) || usedReg.has(grid[r][c]))
+        return false;
       // No 8-directional adjacency with existing kings
-      for (const king of kings)
-        if (areAdjacent8([r, c], king)) return false;
+      for (const king of kings) if (areAdjacent8([r, c], king)) return false;
       return true;
     },
 
@@ -78,8 +77,7 @@ export function hasUniqueSolution(grid: Grid2D, N: number): boolean {
   const numRegs = new Set(grid.flat()).size;
   const regionCells: Coord[][] = Array.from({ length: numRegs }, () => []);
   for (let r = 0; r < N; r++)
-    for (let c = 0; c < N; c++)
-      regionCells[grid[r][c]].push([r, c]);
+    for (let c = 0; c < N; c++) regionCells[grid[r][c]].push([r, c]);
 
   const kings: Coord[] = [];
   const usedRow = new Set<number>();
@@ -91,15 +89,26 @@ export function hasUniqueSolution(grid: Grid2D, N: number): boolean {
       totalSteps: numRegs,
       candidates: (step) => regionCells[step],
       isValid: ([r, c]) => {
-        if (usedRow.has(r) || usedCol.has(c) || usedReg.has(grid[r][c])) return false;
+        if (usedRow.has(r) || usedCol.has(c) || usedReg.has(grid[r][c]))
+          return false;
         for (const king of kings) if (areAdjacent8([r, c], king)) return false;
         return true;
       },
-      apply: ([r, c], step) => { kings.push([r, c]); usedRow.add(r); usedCol.add(c); usedReg.add(step); },
-      undo: ([r, c], step) => { kings.pop(); usedRow.delete(r); usedCol.delete(c); usedReg.delete(step); },
+      apply: ([r, c], step) => {
+        kings.push([r, c]);
+        usedRow.add(r);
+        usedCol.add(c);
+        usedReg.add(step);
+      },
+      undo: ([r, c], step) => {
+        kings.pop();
+        usedRow.delete(r);
+        usedCol.delete(c);
+        usedReg.delete(step);
+      },
       buildSolution: () => [...kings],
     },
-    2 // stop after finding 2 — if count === 1, it's unique
+    2, // stop after finding 2 — if count === 1, it's unique
   );
 
   return count === 1;
@@ -121,7 +130,7 @@ export function kingHasConflict(
   grid: Grid2D,
   r: number,
   c: number,
-  N: number
+  N: number,
 ): boolean {
   const reg = grid[r][c];
   for (let i = 0; i < N; i++)

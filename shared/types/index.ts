@@ -1,20 +1,24 @@
-// ─── Shared types used across multiple games ──────────────────────────────────
+/**
+ * shared/types/index.ts
+ *
+ * Every type that crosses module boundaries lives here.
+ * Games import FROM here — never the other way around.
+ */
 
-/** A 2D integer grid. Negative values typically mean "unassigned". */
+// ── Grid primitives ──────────────────────────────────────────────────────────
+
+/** A 2-D integer grid. Negative values = unassigned. */
 export type Grid2D = number[][];
 
-/** A [row, col] coordinate pair. */
+/** [row, col] coordinate pair. */
 export type Coord = [number, number];
 
-/** Four cardinal directions as [dr, dc] deltas. */
 export const CARDINAL_DIRS: Coord[] = [
   [-1, 0],
   [1, 0],
   [0, -1],
   [0, 1],
 ];
-
-/** Eight surrounding directions (cardinal + diagonal). */
 export const ALL_DIRS: Coord[] = [
   [-1, -1],
   [-1, 0],
@@ -26,37 +30,41 @@ export const ALL_DIRS: Coord[] = [
   [1, 1],
 ];
 
-/** A seeded pseudo-random number generator function that returns [0, 1). */
+// ── RNG / algorithms ─────────────────────────────────────────────────────────
+
+/** Seeded PRNG that returns [0, 1). */
 export type RngFn = () => number;
 
-/** Generic backtracking result. */
 export interface BacktrackResult<T> {
   found: boolean;
   solution: T | null;
   statesExplored: number;
 }
 
+// ── Difficulty system ─────────────────────────────────────────────────────────
+
 /**
- * Non-monotonic difficulty curve for levels, combining:
- *   - A logarithmic base curve (difficulty grows slowly, never plateaus)
- *   - Multiple overlapping sine waves (non-monotonic oscillation)
- *   - Per-level deterministic noise (same level → same score, always)
+ * One named difficulty tier. Lives in shared so both Kings and Mambo
+ * can satisfy the same contract without redefining it.
+ * Game-specific fields (minGrid, maxGrid, etc.) go in the game's own tier type
+ * by extending this.
  */
 export interface DiffTier {
   name: string;
   icon: string;
   diffScore: number;
-  minGrid: number;
-  maxGrid: number;
-  color: string;
-  dim: string;
-  bright: string;
+  color: string; /* accent hex, e.g. "#4a9e6a"      */
+  dim: string; /* dimmed border, e.g. "#2a5e3a"    */
+  bright: string; /* bright text, e.g. "#7ed4a0"      */
 }
 
-export interface TabsProps {
+// ── UI / layout ───────────────────────────────────────────────────────────────
+
+export interface TabItem {
+  id: string;
   label: string;
   icon: string;
-  id: string;
 }
 
-export type TabType = "game" | "solver" | "generator";
+/** The three fixed tabs every game page uses. */
+export type GameTabId = "game" | "solver" | "generator";

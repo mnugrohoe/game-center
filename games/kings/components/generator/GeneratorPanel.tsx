@@ -1,11 +1,10 @@
 "use client";
 
 import { DIFF_TIERS } from "../../lib/difficulty";
-import WavePreviewComponent from "@/shared/component/WavePreview";
 import { cinzel } from "@/shared/utils/fonts";
 import type { GeneratorMode, GeneratedPuzzle } from "../../hooks/useGenerator";
 import { FaChevronLeft, FaChevronRight } from "react-icons/fa6";
-import { DifficultyBadge } from "../DifficultyBadge";
+import { DifficultyBadge, WavePreview } from "@/shared/components";
 import { levelToTierIdx } from "@/shared/algorithms";
 
 interface GeneratorPanelProps {
@@ -186,11 +185,11 @@ const ByLevelWavePreview = ({ state }: { state: LevelStateProps }) => {
           </LevelButton>
         </div>
         {/* Tier badge */}
-        <DifficultyBadge difficulty={TierIdx} />
+        <DifficultyBadge tier={DIFF_TIERS[TierIdx]} />
       </div>
 
       {/* Wave preview */}
-      <WavePreviewComponent currentLevel={currentLevel} />
+      <WavePreview level={currentLevel} />
     </div>
   );
 };

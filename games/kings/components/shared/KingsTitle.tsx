@@ -1,9 +1,11 @@
-import GameTitle from "@/shared/component/GameTitle";
+/**
+ * games/kings/components/shared/KingsTitle.tsx
+ *
+ * Thin wrapper — gives Kings its own title without duplicating GameTitle logic.
+ */
+import { ReactNode } from "react";
+import { GameTitle } from "@/shared/components";
 
-export default function KingsTitle({
-  children,
-}: {
-  children?: React.ReactNode;
-}) {
+export function KingsTitle({ children }: { children?: ReactNode }) {
   return <GameTitle title="♛ KINGS">{children}</GameTitle>;
 }

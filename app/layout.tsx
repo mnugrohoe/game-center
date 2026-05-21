@@ -1,24 +1,18 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { geistMono, geistSans } from "@/shared/utils/fonts";
+import { fontVariables } from "@/shared/utils/fonts";
 
 export const metadata: Metadata = {
-  title: "Game Center",
-  description:
-    "A collection of small games and puzzles built with React and Next.js.",
+  title:       "Game Center",
+  description: "Puzzle games — Kings, Mambo, and more.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={fontVariables}>
+      <body className="min-h-screen flex flex-col antialiased">
+        {children}
+      </body>
     </html>
   );
 }

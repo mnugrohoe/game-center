@@ -1,21 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import PageLayout from "@/shared/component/PageLayout";
+import { PageLayout } from "@/shared/components";
+import { TabItem } from "@/shared/types";
 import MamboGame from "@/games/mambo/components/game/MamboGame";
 import MamboSolver from "@/games/mambo/components/solver/MamboSolver";
 import MamboGenerator from "@/games/mambo/components/generator/MamboGenerator";
 
-type Tab = "game" | "solver" | "generator";
-
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "game", label: "Game", icon: "🎮" },
-  { id: "solver", label: "Solver", icon: "🧠" },
-  { id: "generator", label: "Generator", icon: "⚙" },
+const TABS: TabItem[] = [
+  { id: "game", label: "Game", icon: "☀" },
+  { id: "solver", label: "Solver", icon: "⚙" },
+  { id: "generator", label: "Generator", icon: "✦" },
 ];
 
-export default function MamboApp() {
-  const [tab, setTab] = useState<Tab>("game");
+export default function MamboPage() {
+  const [tab, setTab] = useState("game");
 
   return (
     <PageLayout tabs={TABS} activeTab={tab} onTabChange={setTab}>

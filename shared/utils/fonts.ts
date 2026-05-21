@@ -1,53 +1,47 @@
-import {
-  Geist,
-  Geist_Mono,
-  Cinzel,
-  Cinzel_Decorative,
-  Lato,
-  Space_Mono,
-  Syne,
-} from "next/font/google";
-
-export const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-export const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+/**
+ * shared/utils/fonts.ts
+ * Single font registry for the whole project.
+ * Import the variable you need; never call next/font in a game file.
+ */
+import { Cinzel, Cinzel_Decorative, Space_Mono, Geist, Geist_Mono } from "next/font/google";
 
 export const cinzel = Cinzel({
-  variable: "--font-cinzel",
-  subsets: ["latin"],
-  fallback: ["serif"],
+  variable:  "--font-cinzel",
+  subsets:   ["latin"],
+  weight:    ["400", "600", "700"],
+  display:   "swap",
 });
 
 export const cinzelDecorative = Cinzel_Decorative({
-  variable: "--font-cinzel-decorative",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  fallback: ["serif"],
-});
-
-export const lato = Lato({
-  variable: "--font-lato",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  fallback: ["sans-serif"],
+  variable:  "--font-cinzel-decorative",
+  subsets:   ["latin"],
+  weight:    ["400", "700"],
+  display:   "swap",
 });
 
 export const spaceMono = Space_Mono({
-  variable: "--font-space-mono",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  fallback: ["monospace"],
+  variable:  "--font-space-mono",
+  subsets:   ["latin"],
+  weight:    ["400", "700"],
+  display:   "swap",
 });
 
-export const syne = Syne({
-  variable: "--font-syne",
-  subsets: ["latin"],
-  weight: ["400", "700", "800"],
-  fallback: ["sans-serif"],
+// Geist for the shell / home page only
+export const geistSans = Geist({
+  variable:  "--font-geist-sans",
+  subsets:   ["latin"],
 });
+
+export const geistMono = Geist_Mono({
+  variable:  "--font-geist-mono",
+  subsets:   ["latin"],
+});
+
+/** All CSS variable names to inject into <html className={...}> */
+export const fontVariables = [
+  cinzel.variable,
+  cinzelDecorative.variable,
+  spaceMono.variable,
+  geistSans.variable,
+  geistMono.variable,
+].join(" ");
