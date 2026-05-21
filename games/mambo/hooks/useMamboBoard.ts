@@ -17,16 +17,22 @@ export interface MamboBoardActions {
   resetBoard: () => void;
 }
 
-export function useMamboBoard(puzzle: MamboPuzzle): MamboBoardState & MamboBoardActions {
+export function useMamboBoard(
+  puzzle: MamboPuzzle,
+): MamboBoardState & MamboBoardActions {
   const [userGrid, setUserGrid] = useState<CellValue[][]>(() =>
     puzzle.puzzle.map((r) => [...r]),
   );
-  const [status,  setStatus]  = useState<"playing" | "won">("playing");
+  const [status, setStatus] = useState<"playing" | "won">("playing");
   const [elapsed, setElapsed] = useState(0);
   const [showSol, setShowSol] = useState(false);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startRef = useRef<number>(Date.now());
+  const startRef = useRef<number>(0);
+
+  useEffect(() => {
+    startRef.current = Date.now();
+  }, []);
 
   // Start timer on mount
   useEffect(() => {
@@ -35,11 +41,14 @@ export function useMamboBoard(puzzle: MamboPuzzle): MamboBoardState & MamboBoard
       () => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)),
       1000,
     );
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
   // Reset everything when puzzle changes (next puzzle flow)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUserGrid(puzzle.puzzle.map((r) => [...r]));
     setStatus("playing");
     setElapsed(0);
@@ -50,7 +59,9 @@ export function useMamboBoard(puzzle: MamboPuzzle): MamboBoardState & MamboBoard
       () => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)),
       1000,
     );
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [puzzle]);
 
   const handleCellClick = useCallback(
@@ -88,5 +99,13 @@ export function useMamboBoard(puzzle: MamboPuzzle): MamboBoardState & MamboBoard
     );
   }, [puzzle]);
 
-  return { userGrid, status, elapsed, showSol, handleCellClick, togglePeek, resetBoard };
+  return {
+    userGrid,
+    status,
+    elapsed,
+    showSol,
+    handleCellClick,
+    togglePeek,
+    resetBoard,
+  };
 }
