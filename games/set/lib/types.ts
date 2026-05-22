@@ -19,14 +19,14 @@ export interface SetCard {
 export interface Difficulty {
   name: string;
   symbol: string;
-
   boardCols: number;
   boardRows: number;
-
-  ensureSets: number;
-
-  allowNearMiss: boolean;
-
+  targetSets: number;
+  overlapFactor: number;
+  maxExtraSets: number;
+  nearMissTarget: number;
+  entropy: number;
+  visualNoise: number;
   timer?: number;
   hintPenalty?: number;
 }

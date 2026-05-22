@@ -207,7 +207,7 @@ export default function SetGenerator() {
 
           <span>·</span>
 
-          <span>{tier.ensureSets} sets min</span>
+          <span>{tier.targetSets} sets min</span>
 
           {tier.timer && (
             <>

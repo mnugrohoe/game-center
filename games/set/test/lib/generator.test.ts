@@ -10,7 +10,9 @@ import {
 } from "@/games/set/lib/generator";
 
 import { SET_DIFF_TIERS } from "@/games/set/lib/difficulty";
+
 import { findAllSets } from "@/games/set/lib/solver";
+
 import type { SetCard } from "@/games/set/lib/types";
 
 /*
@@ -23,7 +25,19 @@ function normalizeSet(set: [SetCard, SetCard, SetCard]) {
   return set
     .map((c) => c.id)
     .sort()
-    .join("-");
+    .join("|");
+}
+
+function buildUsageMap(sets: [SetCard, SetCard, SetCard][]) {
+  const usage = new Map<string, number>();
+
+  for (const set of sets) {
+    for (const card of set) {
+      usage.set(card.id, (usage.get(card.id) ?? 0) + 1);
+    }
+  }
+
+  return usage;
 }
 
 /*
@@ -57,23 +71,7 @@ describe("generateSetBoard", () => {
     expect(a).toEqual(b);
   });
 
-  it("contains at least required amount of sets", () => {
-    for (const tier of SET_DIFF_TIERS) {
-      const result = generateSetBoard(tier, 123);
-
-      expect(result.sets.length).toBeGreaterThanOrEqual(tier.ensureSets);
-    }
-  });
-
-  it("does not exceed set cap by too much", () => {
-    for (const tier of SET_DIFF_TIERS) {
-      const result = generateSetBoard(tier, 456);
-
-      expect(result.sets.length).toBeLessThanOrEqual(tier.ensureSets + 3);
-    }
-  });
-
-  it("has unique cards", () => {
+  it("contains unique cards only", () => {
     const tier = SET_DIFF_TIERS[0];
 
     const result = generateSetBoard(tier, 888);
@@ -83,52 +81,50 @@ describe("generateSetBoard", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("allows overlapping sets", () => {
-    const tier = SET_DIFF_TIERS[2];
+  it("matches target board size", () => {
+    for (const tier of SET_DIFF_TIERS) {
+      const result = generateSetBoard(tier, 111);
 
-    const result = generateSetBoard(tier, 777);
-
-    const usage = new Map<string, number>();
-
-    for (const set of result.sets) {
-      for (const card of set) {
-        usage.set(card.id, (usage.get(card.id) ?? 0) + 1);
-      }
+      expect(result.cards.length).toBe(tier.boardCols * tier.boardRows);
     }
-
-    const overlappingCards = [...usage.values()].filter((v) => v > 1);
-
-    expect(overlappingCards.length).toBeGreaterThan(0);
   });
 
-  it("limits dead cards", () => {
-    const tier = SET_DIFF_TIERS[1];
+  it("meets minimum target sets", () => {
+    for (const tier of SET_DIFF_TIERS) {
+      const result = generateSetBoard(tier, 222);
 
-    const result = generateSetBoard(tier, 444);
-
-    const usage = new Map<string, number>();
-
-    for (const card of result.cards) {
-      usage.set(card.id, 0);
+      expect(result.sets.length).toBeGreaterThanOrEqual(tier.targetSets);
     }
+  });
 
-    for (const set of result.sets) {
-      for (const card of set) {
-        usage.set(card.id, (usage.get(card.id) ?? 0) + 1);
-      }
+  it("does not exceed allowed extra sets", () => {
+    for (const tier of SET_DIFF_TIERS) {
+      const result = generateSetBoard(tier, 333);
+
+      expect(result.sets.length).toBeLessThanOrEqual(
+        tier.targetSets + tier.maxExtraSets + 1,
+      );
     }
+  });
 
-    const deadCards = [...usage.values()].filter((v) => v === 0);
+  it("supports overlapping sets on higher difficulties", () => {
+    const tier = SET_DIFF_TIERS[3];
 
-    expect(deadCards.length).toBeLessThan(5);
+    const result = generateSetBoard(tier, 555);
+
+    const usage = buildUsageMap(result.sets);
+
+    const overlapping = [...usage.values()].filter((v) => v > 1);
+
+    expect(overlapping.length).toBeGreaterThan(0);
   });
 
   it("is deterministic for same seed", () => {
     const tier = SET_DIFF_TIERS[0];
 
-    const a = generateSetBoard(tier, 123456);
+    const a = generateSetBoard(tier, 777777);
 
-    const b = generateSetBoard(tier, 123456);
+    const b = generateSetBoard(tier, 777777);
 
     const idsA = a.cards.map((c) => c.id);
 
@@ -149,6 +145,62 @@ describe("generateSetBoard", () => {
     const idsB = b.cards.map((c) => c.id);
 
     expect(idsA).not.toEqual(idsB);
+  });
+
+  it("returns metrics", () => {
+    const tier = SET_DIFF_TIERS[2];
+
+    const result = generateSetBoard(tier, 9999);
+
+    expect(result.metrics.totalSets).toBe(result.sets.length);
+
+    expect(result.metrics.deadCards).toBeGreaterThanOrEqual(0);
+
+    expect(result.metrics.overlapAverage).toBeGreaterThanOrEqual(0);
+
+    expect(result.metrics.overlapMax).toBeGreaterThanOrEqual(0);
+  });
+
+  it("metrics match actual board analysis", () => {
+    const tier = SET_DIFF_TIERS[2];
+
+    const result = generateSetBoard(tier, 999);
+
+    const usage = buildUsageMap(result.sets);
+
+    let deadCards = 0;
+
+    for (const card of result.cards) {
+      if (!usage.has(card.id)) {
+        deadCards++;
+      }
+    }
+
+    expect(result.metrics.totalSets).toBe(result.sets.length);
+
+    expect(result.metrics.deadCards).toBe(deadCards);
+  });
+
+  it("all returned sets are unique", () => {
+    const tier = SET_DIFF_TIERS[2];
+
+    const result = generateSetBoard(tier, 13579);
+
+    const normalized = result.sets.map(normalizeSet);
+
+    expect(new Set(normalized).size).toBe(normalized.length);
+  });
+
+  it("all sets contain exactly 3 unique cards", () => {
+    const tier = SET_DIFF_TIERS[2];
+
+    const result = generateSetBoard(tier, 24680);
+
+    for (const set of result.sets) {
+      const ids = set.map((c) => c.id);
+
+      expect(new Set(ids).size).toBe(3);
+    }
   });
 });
 

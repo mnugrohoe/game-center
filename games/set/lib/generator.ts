@@ -2,9 +2,10 @@
 
 import { ALL_CARDS } from "./constants";
 import { SET_DIFF_TIERS } from "./difficulty";
+
 import { completeSet, findAllSets } from "./solver";
 
-import { Difficulty, SetCard } from "./types";
+import type { Difficulty, SetCard } from "./types";
 
 import {
   clamp,
@@ -20,6 +21,14 @@ export interface GeneratedSetBoard {
   sets: [SetCard, SetCard, SetCard][];
   tier: Difficulty;
   seed: number;
+  metrics: BoardMetrics;
+}
+
+export interface BoardMetrics {
+  totalSets: number;
+  deadCards: number;
+  overlapAverage: number;
+  overlapMax: number;
 }
 
 /*
@@ -28,20 +37,323 @@ UTILS
 ───────────────────────────────────────
 */
 
-function pick<T>(arr: T[], rng: () => number): T {
-  return arr[Math.floor(rng() * arr.length)];
+function pick<T>(arr: readonly T[], rng: () => number): T {
+  return arr[Math.floor(rng() * arr.length)]!;
 }
 
-function setKey(cards: [SetCard, SetCard, SetCard]) {
-  return cards
-    .map((c) => c.id)
-    .sort()
-    .join("-");
+function replaceCard(
+  cards: SetCard[],
+  oldCardId: string,
+  nextCard: SetCard,
+): SetCard[] {
+  return cards.map((c) => {
+    if (c.id === oldCardId) {
+      return nextCard;
+    }
+
+    return c;
+  });
 }
 
 /*
 ───────────────────────────────────────
-CORE
+USAGE MAP
+───────────────────────────────────────
+*/
+
+function buildUsageMap(
+  sets: [SetCard, SetCard, SetCard][],
+): Map<string, number> {
+  const usage = new Map<string, number>();
+
+  for (const set of sets) {
+    for (const card of set) {
+      usage.set(card.id, (usage.get(card.id) ?? 0) + 1);
+    }
+  }
+
+  return usage;
+}
+
+/*
+───────────────────────────────────────
+ANALYZE BOARD
+───────────────────────────────────────
+*/
+
+function analyzeBoard(
+  cards: SetCard[],
+  sets: [SetCard, SetCard, SetCard][],
+): BoardMetrics {
+  const usage = buildUsageMap(sets);
+
+  let deadCards = 0;
+
+  for (const card of cards) {
+    if (!usage.has(card.id)) {
+      deadCards++;
+    }
+  }
+
+  const overlaps = [...usage.values()];
+
+  const overlapAverage =
+    overlaps.length === 0
+      ? 0
+      : overlaps.reduce((a, b) => a + b, 0) / overlaps.length;
+
+  const overlapMax = Math.max(...overlaps, 0);
+
+  return {
+    totalSets: sets.length,
+    deadCards,
+    overlapAverage,
+    overlapMax,
+  };
+}
+
+/*
+───────────────────────────────────────
+VALIDATE
+───────────────────────────────────────
+*/
+
+function validateBoard(
+  tier: Difficulty,
+  cards: SetCard[],
+  sets: [SetCard, SetCard, SetCard][],
+): boolean {
+  /*
+  ───────────────────────────────────────
+  TARGET SETS
+  ───────────────────────────────────────
+  */
+
+  if (sets.length < tier.targetSets) {
+    return false;
+  }
+
+  if (sets.length > tier.targetSets + tier.maxExtraSets) {
+    return false;
+  }
+
+  return true;
+}
+
+/*
+───────────────────────────────────────
+INITIAL RANDOM BOARD
+───────────────────────────────────────
+*/
+
+function createInitialBoard(size: number, rng: () => number): SetCard[] {
+  return shuffle([...ALL_CARDS], rng).slice(0, size);
+}
+
+/*
+───────────────────────────────────────
+ADD SET MUTATION
+Force create 1 valid set
+───────────────────────────────────────
+*/
+
+function addSetMutation(board: SetCard[], rng: () => number): SetCard[] {
+  const solvedSets = findAllSets(board);
+
+  const usage = buildUsageMap(solvedSets);
+
+  /*
+  ───────────────────────────────────────
+  PRIORITY:
+  replace dead cards first
+  ───────────────────────────────────────
+  */
+
+  const deadCards = board.filter((c) => !usage.has(c.id));
+
+  const replaceTarget =
+    deadCards.length > 0 ? pick(deadCards, rng) : pick(board, rng);
+
+  /*
+  ───────────────────────────────────────
+  PICK 2 RANDOM CARDS
+  ───────────────────────────────────────
+  */
+
+  const a = pick(board, rng);
+
+  const candidates = board.filter((c) => c.id !== a.id);
+
+  const b = pick(candidates, rng);
+
+  /*
+  ───────────────────────────────────────
+  COMPLETE SET
+  ───────────────────────────────────────
+  */
+
+  const needed = completeSet(a, b);
+
+  /*
+  ───────────────────────────────────────
+  AVOID DUPLICATES
+  ───────────────────────────────────────
+  */
+
+  const exists = board.some((c) => c.id === needed.id);
+
+  if (exists) {
+    return board;
+  }
+
+  return replaceCard(board, replaceTarget.id, needed);
+}
+
+/*
+───────────────────────────────────────
+BREAK SET MUTATION
+Reduce excessive sets
+───────────────────────────────────────
+*/
+
+function breakSetMutation(board: SetCard[], rng: () => number): SetCard[] {
+  const solvedSets = findAllSets(board);
+
+  const usage = buildUsageMap(solvedSets);
+
+  /*
+  ───────────────────────────────────────
+  PICK MOST OVERUSED CARD
+  ───────────────────────────────────────
+  */
+
+  let worstCardId: string | null = null;
+
+  let highestUsage = -1;
+
+  for (const [id, count] of usage.entries()) {
+    if (count > highestUsage) {
+      highestUsage = count;
+
+      worstCardId = id;
+    }
+  }
+
+  if (!worstCardId) {
+    return board;
+  }
+
+  /*
+  ───────────────────────────────────────
+  FIND SAFE REPLACEMENT
+  ───────────────────────────────────────
+  */
+
+  const usedIds = new Set(board.map((c) => c.id));
+
+  const pool = shuffle(
+    ALL_CARDS.filter((c) => !usedIds.has(c.id)),
+    rng,
+  );
+
+  let bestBoard = board;
+
+  let bestSetCount = solvedSets.length;
+
+  for (const candidate of pool.slice(0, 20)) {
+    const nextBoard = replaceCard(board, worstCardId, candidate);
+
+    const nextSets = findAllSets(nextBoard);
+
+    if (nextSets.length < bestSetCount) {
+      bestSetCount = nextSets.length;
+
+      bestBoard = nextBoard;
+    }
+  }
+
+  return bestBoard;
+}
+
+/*
+───────────────────────────────────────
+OPTIMIZER
+Incremental repair algorithm
+───────────────────────────────────────
+*/
+
+function optimizeBoard(
+  tier: Difficulty,
+  initialBoard: SetCard[],
+  rng: () => number,
+): SetCard[] {
+  let board = [...initialBoard];
+
+  /*
+  ───────────────────────────────────────
+  CONVERGENCE LOOP
+  ───────────────────────────────────────
+  */
+
+  for (let step = 0; step < 200; step++) {
+    const solvedSets = findAllSets(board);
+
+    /*
+    ───────────────────────────────────────
+    SUCCESS
+    ───────────────────────────────────────
+    */
+
+    if (validateBoard(tier, board, solvedSets)) {
+      return board;
+    }
+
+    /*
+    ───────────────────────────────────────
+    NEED MORE SETS
+    ───────────────────────────────────────
+    */
+
+    if (solvedSets.length < tier.targetSets) {
+      board = addSetMutation(board, rng);
+
+      continue;
+    }
+
+    /*
+    ───────────────────────────────────────
+    TOO MANY SETS
+    ───────────────────────────────────────
+    */
+
+    if (solvedSets.length > tier.targetSets + tier.maxExtraSets) {
+      board = breakSetMutation(board, rng);
+
+      continue;
+    }
+
+    /*
+    ───────────────────────────────────────
+    MICRO SHUFFLE
+    ───────────────────────────────────────
+    */
+
+    board = shuffle(board, rng);
+  }
+
+  /*
+  ───────────────────────────────────────
+  FALLBACK
+  practically impossible now
+  ───────────────────────────────────────
+  */
+
+  return board;
+}
+
+/*
+───────────────────────────────────────
+MAIN GENERATOR
 ───────────────────────────────────────
 */
 
@@ -53,202 +365,49 @@ export function generateSetBoard(
 
   const size = tier.boardCols * tier.boardRows;
 
-  const MAX_ATTEMPTS = 250;
+  /*
+  ───────────────────────────────────────
+  INITIAL BOARD
+  ───────────────────────────────────────
+  */
 
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    /*
-    ───────────────────────────────────────
-    STEP 1:
-    BUILD INTERCONNECTED SET GRAPH
-    ───────────────────────────────────────
-    */
+  const initialBoard = createInitialBoard(size, rng);
 
-    const generatedSets: [SetCard, SetCard, SetCard][] = [];
+  /*
+  ───────────────────────────────────────
+  OPTIMIZE
+  ───────────────────────────────────────
+  */
 
-    const usedCards = new Map<string, SetCard>();
+  const board = optimizeBoard(tier, initialBoard, rng);
 
-    const deck = shuffle([...ALL_CARDS], rng);
+  /*
+  ───────────────────────────────────────
+  SOLVE FINAL
+  ───────────────────────────────────────
+  */
 
-    /**
-     * Seed first set
-     */
-    const a = deck.pop();
-    const b = deck.pop();
+  const solvedSets = findAllSets(board);
 
-    if (!a || !b) continue;
+  /*
+  ───────────────────────────────────────
+  METRICS
+  ───────────────────────────────────────
+  */
 
-    const c = completeSet(a, b);
+  const metrics = analyzeBoard(board, solvedSets);
 
-    /**
-     * Prevent accidental duplicates
-     */
-    if (a.id === c.id || b.id === c.id) {
-      continue;
-    }
+  return {
+    cards: board,
 
-    generatedSets.push([a, b, c]);
+    sets: solvedSets,
 
-    usedCards.set(a.id, a);
-    usedCards.set(b.id, b);
-    usedCards.set(c.id, c);
+    tier,
 
-    /*
-    ───────────────────────────────────────
-    STEP 2:
-    EXPAND OVERLAPPING SETS
-    ───────────────────────────────────────
-    */
+    seed,
 
-    let safety = 0;
-
-    while (generatedSets.length < tier.ensureSets && safety < 500) {
-      safety++;
-
-      /**
-       * Reuse existing card intentionally
-       */
-      const existing = pick([...usedCards.values()], rng);
-
-      /**
-       * Random partner
-       */
-      const partner = pick(deck, rng);
-
-      /**
-       * Complete set
-       */
-      const third = completeSet(existing, partner);
-
-      /**
-       * Invalid self-duplicates
-       */
-      if (
-        existing.id === partner.id ||
-        existing.id === third.id ||
-        partner.id === third.id
-      ) {
-        continue;
-      }
-
-      const nextSet: [SetCard, SetCard, SetCard] = [existing, partner, third];
-
-      /**
-       * Prevent duplicate sets
-       */
-      const nextKey = setKey(nextSet);
-
-      const duplicate = generatedSets.some((s) => setKey(s) === nextKey);
-
-      if (duplicate) {
-        continue;
-      }
-
-      generatedSets.push(nextSet);
-
-      usedCards.set(existing.id, existing);
-      usedCards.set(partner.id, partner);
-      usedCards.set(third.id, third);
-    }
-
-    /*
-    ───────────────────────────────────────
-    STEP 3:
-    BUILD FINAL BOARD
-    ───────────────────────────────────────
-    */
-
-    const boardCards = [...usedCards.values()];
-
-    /**
-     * Fill remaining slots
-     */
-    const remainingDeck = shuffle(
-      ALL_CARDS.filter((c) => !usedCards.has(c.id)),
-      rng,
-    );
-
-    while (boardCards.length < size && remainingDeck.length > 0) {
-      const next = remainingDeck.pop();
-
-      if (!next) break;
-
-      boardCards.push(next);
-    }
-
-    /**
-     * Trim overflow
-     */
-    const finalCards = shuffle(boardCards.slice(0, size), rng);
-
-    /*
-    ───────────────────────────────────────
-    STEP 4:
-    SOLVE FINAL BOARD
-    ───────────────────────────────────────
-    */
-
-    const solvedSets = findAllSets(finalCards);
-
-    /*
-    ───────────────────────────────────────
-    STEP 5:
-    VALIDATION
-    ───────────────────────────────────────
-    */
-
-    /**
-     * Too few sets
-     */
-    if (solvedSets.length < tier.ensureSets) {
-      continue;
-    }
-
-    /**
-     * Too many sets
-     */
-    if (solvedSets.length > tier.ensureSets + 3) {
-      continue;
-    }
-
-    /**
-     * Dead cards analysis
-     */
-    const usage = new Map<string, number>();
-
-    for (const card of finalCards) {
-      usage.set(card.id, 0);
-    }
-
-    for (const set of solvedSets) {
-      for (const card of set) {
-        usage.set(card.id, (usage.get(card.id) ?? 0) + 1);
-      }
-    }
-
-    const deadCards = [...usage.values()].filter((v) => v === 0).length;
-
-    /**
-     * Too many useless cards
-     */
-    if (deadCards >= 5) {
-      continue;
-    }
-
-    /*
-    ───────────────────────────────────────
-    SUCCESS
-    ───────────────────────────────────────
-    */
-
-    return {
-      cards: finalCards,
-      sets: solvedSets,
-      tier,
-      seed,
-    };
-  }
-
-  throw new Error(`Failed generating SET board after ${MAX_ATTEMPTS} attempts`);
+    metrics,
+  };
 }
 
 /*
@@ -301,7 +460,7 @@ BY LEVEL
 
 export function generateByLevel(level: number): GeneratedSetBoard {
   const diffScore = clamp(
-    levelToDiffScore(level),
+    Math.floor(levelToDiffScore(level)),
     0,
     SET_DIFF_TIERS.length - 1,
   );
