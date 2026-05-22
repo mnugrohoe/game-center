@@ -1,8 +1,6 @@
-// games/set/components/SetGenerator.tsx
-
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 
 import {
   GameTitle,
@@ -19,23 +17,27 @@ import { findAllSets } from "../lib/solver";
 import type { SetCard } from "../lib/types";
 
 import { SetCard as SetCardUI } from "./SetCard";
+import SymbolRenderer from "./shape";
+import { FaMinus } from "react-icons/fa6";
 
 export default function SetGenerator() {
   const [selectedTier, setSelectedTier] = useState<number>(0);
-  const [board, setBoard] = useState<SetCard[] | null>(null);
-  const [foundSets, setFoundSets] = useState<[SetCard, SetCard, SetCard][]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [score, setScore] = useState(0);
-  const [won, setWon] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [solveRevealed, setSolveRevealed] = useState(false);
-  const [allSets, setAllSets] = useState<[SetCard, SetCard, SetCard][]>([]);
 
-  /*
-  ───────────────────────────────────────
-  HELPERS
-  ───────────────────────────────────────
-  */
+  const [board, setBoard] = useState<SetCard[] | null>(null);
+
+  const [foundSets, setFoundSets] = useState<[SetCard, SetCard, SetCard][]>([]);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const [score, setScore] = useState(0);
+
+  const [won, setWon] = useState(false);
+
+  const [generating, setGenerating] = useState(false);
+
+  const [hintIds, setHintIds] = useState<Set<string>>(new Set());
+
+  const [allSets, setAllSets] = useState<[SetCard, SetCard, SetCard][]>([]);
 
   function normalizeSet(set: [SetCard, SetCard, SetCard]) {
     return set
@@ -44,11 +46,36 @@ export default function SetGenerator() {
       .join("-");
   }
 
-  /*
-  ───────────────────────────────────────
-  GENERATE
-  ───────────────────────────────────────
-  */
+  const sortSet = (set: [SetCard, SetCard, SetCard]) =>
+    [...set].sort(
+      (a, b) =>
+        a.count - b.count ||
+        a.color.localeCompare(b.color, "en-US", {
+          sensitivity: "base",
+        }) ||
+        a.texture.localeCompare(b.texture, "en-US", {
+          sensitivity: "base",
+        }) ||
+        a.symbol.localeCompare(b.symbol, "en-US", {
+          sensitivity: "base",
+        }),
+    );
+
+  const remainingSets = useMemo(() => {
+    const foundKeys = new Set(foundSets.map(normalizeSet));
+
+    const map = new Map<string, [SetCard, SetCard, SetCard]>();
+
+    for (const set of allSets) {
+      const key = normalizeSet(set);
+
+      if (!foundKeys.has(key)) {
+        map.set(key, set);
+      }
+    }
+
+    return [...map.values()];
+  }, [allSets, foundSets]);
 
   const generate = useCallback(() => {
     setGenerating(true);
@@ -56,35 +83,64 @@ export default function SetGenerator() {
     setTimeout(() => {
       try {
         const result = generateByTier(selectedTier, Date.now());
+
         setBoard(result.cards);
+
         setFoundSets([]);
+
         setSelectedIds(new Set());
+
         setScore(0);
+
         setWon(false);
-        setSolveRevealed(false);
+
+        setHintIds(new Set());
+
         setAllSets(result.sets);
       } catch {
-        // retry silently
+        //
       }
 
       setGenerating(false);
     }, 50);
   }, [selectedTier]);
 
-  /*
-  ───────────────────────────────────────
-  CARD SELECT
-  ───────────────────────────────────────
-  */
+  function revealHint() {
+    if (!remainingSets.length) return;
+
+    setHintIds((prev) => {
+      const nextIndex = prev.size;
+      const nextHint = remainingSets[0]?.[nextIndex]?.id;
+
+      if (!nextHint) return prev;
+
+      return new Set([...prev, nextHint]);
+    });
+  }
+
+  function clearSolvedHints(updatedFoundSets: [SetCard, SetCard, SetCard][]) {
+    const foundKeys = new Set(updatedFoundSets.map(normalizeSet));
+
+    const remainingHintCards = [...hintIds].filter((id) => {
+      return allSets.some((set) => {
+        const key = normalizeSet(set);
+
+        if (foundKeys.has(key)) {
+          return false;
+        }
+
+        return set.some((c) => c.id === id);
+      });
+    });
+
+    setHintIds(new Set(remainingHintCards));
+  }
 
   function toggleCard(id: string) {
-    if (won || solveRevealed) return;
+    if (won) return;
 
     const next = new Set(selectedIds);
 
-    /**
-     * Toggle
-     */
     if (next.has(id)) {
       next.delete(id);
     } else if (next.size < 3) {
@@ -93,9 +149,6 @@ export default function SetGenerator() {
 
     setSelectedIds(next);
 
-    /**
-     * Need exactly 3 cards
-     */
     if (next.size !== 3 || !board) {
       return;
     }
@@ -108,9 +161,6 @@ export default function SetGenerator() {
 
     const valid = findAllSets(trio).length > 0;
 
-    /**
-     * Invalid set
-     */
     if (!valid) {
       setTimeout(() => {
         setSelectedIds(new Set());
@@ -119,9 +169,6 @@ export default function SetGenerator() {
       return;
     }
 
-    /**
-     * Prevent duplicate scoring
-     */
     const key = normalizeSet(trio);
 
     const alreadyFound = foundSets.some((s) => normalizeSet(s) === key);
@@ -134,9 +181,6 @@ export default function SetGenerator() {
       return;
     }
 
-    /**
-     * Add found set
-     */
     const updated = [...foundSets, trio];
 
     setFoundSets(updated);
@@ -145,11 +189,14 @@ export default function SetGenerator() {
 
     setSelectedIds(new Set());
 
-    /**
-     * Win condition
-     */
+    clearSolvedHints(updated);
+
+    setHintIds(new Set());
+
     if (updated.length >= allSets.length) {
       setWon(true);
+
+      setHintIds(new Set());
     }
   }
 
@@ -160,10 +207,6 @@ export default function SetGenerator() {
       <GameTitle title="◈ SET GENERATOR">
         GENERATE A BOARD · FIND ALL SETS
       </GameTitle>
-
-      {/* ───────────────────────────── */}
-      {/* Difficulty */}
-      {/* ───────────────────────────── */}
 
       <div className="w-full max-w-xl panel flex flex-col gap-4">
         <div className="divider-label">DIFFICULTY</div>
@@ -227,13 +270,46 @@ export default function SetGenerator() {
         </ActionButton>
       </div>
 
-      {/* ───────────────────────────── */}
-      {/* BOARD */}
-      {/* ───────────────────────────── */}
-
       {board && (
         <div className="w-full max-w-xl flex flex-col gap-4">
-          {/* Status */}
+          <div className="flex flex-col gap-2">
+            <div className="divider-label">
+              FOUND SETS ({foundSets.length}/{allSets.length})
+            </div>
+
+            <div className="flex gap-2 items-center justify-center flex-wrap">
+              {foundSets.map((set, i) => (
+                <div
+                  key={i}
+                  className="flex flex-col gap-2 justify-center items-center panel py-2 px-3 border-ok-rim bg-ok-bg w-22 h-22"
+                >
+                  {sortSet(set).map((card) => (
+                    <SymbolRenderer
+                      key={card.id}
+                      symbol={card.symbol}
+                      color={card.color}
+                      texture={card.texture}
+                      count={card.count}
+                      className="w-4"
+                    />
+                  ))}
+                </div>
+              ))}
+
+              {Array.from({
+                length: allSets.length - foundSets.length,
+              }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex gap-1 items-center py-2 px-3 w-22 h-22"
+                >
+                  <FaMinus className="w-2 h-2" />
+                  <FaMinus className="w-2 h-2" />
+                  <FaMinus className="w-2 h-2" />
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="flex flex-wrap gap-2 justify-center">
             <StatusChip variant="gold">
@@ -245,17 +321,19 @@ export default function SetGenerator() {
             </StatusChip>
 
             <StatusChip variant="ghost">{tier.name}</StatusChip>
-          </div>
 
-          {/* Win */}
+            {hintIds.size > 0 && (
+              <StatusChip variant="gold">
+                {hintIds.size} hint{hintIds.size > 1 ? "s" : ""}
+              </StatusChip>
+            )}
+          </div>
 
           {won && (
             <WinBanner
               detail={`Found all ${allSets.length} sets! Score: ${score}`}
             />
           )}
-
-          {/* Grid */}
 
           <div
             className="grid gap-2 justify-center"
@@ -264,13 +342,7 @@ export default function SetGenerator() {
             }}
           >
             {board.map((card) => {
-              const isHighlighted =
-                solveRevealed &&
-                allSets.some((s) => s.some((c) => c.id === card.id));
-
-              const isPartOfFoundSet = foundSets.some((s) =>
-                s.some((c) => c.id === card.id),
-              );
+              const isHighlighted = hintIds.has(card.id);
 
               return (
                 <SetCardUI
@@ -280,13 +352,10 @@ export default function SetGenerator() {
                   highlighted={isHighlighted}
                   onClick={() => toggleCard(card.id)}
                   size="md"
-                  className={isPartOfFoundSet ? "ring-1 ring-ok/40" : ""}
                 />
               );
             })}
           </div>
-
-          {/* Controls */}
 
           <div className="flex gap-2 flex-wrap justify-center">
             <ControlButton
@@ -296,39 +365,21 @@ export default function SetGenerator() {
               Clear
             </ControlButton>
 
-            <ControlButton onClick={() => setSolveRevealed((v) => !v)}>
-              {solveRevealed ? "Hide Hints" : "Hint"}
+            <ControlButton
+              onClick={revealHint}
+              disabled={remainingSets.length === 0}
+            >
+              + Hint
+            </ControlButton>
+
+            <ControlButton onClick={() => setHintIds(new Set())}>
+              Clear Hints
             </ControlButton>
 
             <ControlButton onClick={generate}>↺ New Board</ControlButton>
           </div>
-
-          {/* Found sets */}
-
-          {foundSets.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <div className="divider-label">
-                FOUND SETS ({foundSets.length}/{allSets.length})
-              </div>
-
-              {foundSets.map((set, i) => (
-                <div
-                  key={i}
-                  className="flex gap-2 items-center panel py-2 px-3 border-ok-rim bg-ok-bg"
-                >
-                  <span className="font-ui text-[0.6rem] text-ok w-4">✓</span>
-
-                  {set.map((card) => (
-                    <SetCardUI key={card.id} card={card} size="sm" />
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
-
-      {/* Empty state */}
 
       {!board && (
         <div className="flex flex-col items-center gap-3 py-8 opacity-40">
