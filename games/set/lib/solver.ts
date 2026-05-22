@@ -1,7 +1,14 @@
 // solver.ts
 
+import { COLORS, COUNTS, SYMBOLS, TEXTURES } from "./constants";
 import { SetCard } from "./types";
 import { isValidSet } from "./validator";
+
+/*
+───────────────────────────────────────
+SOLVE ALL SETS
+───────────────────────────────────────
+*/
 
 export function findAllSets(cards: SetCard[]) {
   const sets: [SetCard, SetCard, SetCard][] = [];
@@ -23,4 +30,43 @@ export function findAllSets(cards: SetCard[]) {
   }
 
   return sets;
+}
+
+/*
+───────────────────────────────────────
+COMPLETE FEATURE
+───────────────────────────────────────
+*/
+
+function completeFeature<T>(a: T, b: T, all: readonly T[]): T {
+  /**
+   * Same -> same
+   */
+  if (a === b) return a;
+
+  /**
+   * Different -> third unique value
+   */
+  return all.find((v) => v !== a && v !== b)!;
+}
+
+/*
+───────────────────────────────────────
+COMPLETE SET
+Given 2 cards, compute the 3rd.
+───────────────────────────────────────
+*/
+
+export function completeSet(a: SetCard, b: SetCard): SetCard {
+  return {
+    id: crypto.randomUUID(),
+
+    symbol: completeFeature(a.symbol, b.symbol, SYMBOLS),
+
+    color: completeFeature(a.color, b.color, COLORS),
+
+    texture: completeFeature(a.texture, b.texture, TEXTURES),
+
+    count: completeFeature(a.count, b.count, COUNTS),
+  };
 }

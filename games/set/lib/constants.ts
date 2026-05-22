@@ -31,5 +31,5 @@ for (const symbol of SYMBOLS)
 export const COLOR_MAP: Record<SetColor, string> = {
   red: "#d84c4c",
   green: "#43b581",
-  purple: "#6d7cff",
+  purple: "#69359c",
 };

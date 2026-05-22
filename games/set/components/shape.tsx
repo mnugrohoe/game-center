@@ -1,118 +1,159 @@
+// games/set/components/shape.tsx
+
 import type { SVGProps } from "react";
-import { COLORS } from "../lib/constants";
+import { COLOR_MAP } from "../lib/constants";
 import { SetColor, SetSymbol, SetTexture } from "../lib/types";
 
 interface ShapeProps extends SVGProps<SVGSVGElement> {
+  symbol: SetSymbol;
   fill: string;
   stroke: string;
+  stripeId: string;
+  striped: boolean;
 }
 
 interface SymbolRendererProps extends SVGProps<SVGSVGElement> {
   symbol: SetSymbol;
   color: SetColor;
   texture: SetTexture;
+  count?: 1 | 2 | 3;
 }
 
-export function Diamond({ fill, stroke, className }: ShapeProps) {
+/* -----------------------------
+   DESIGN TOKENS
+------------------------------ */
+
+const STROKE = 4.5;
+const STRIPE_STROKE = 5.5;
+const STRIPE_SPACING = 12;
+
+/* -----------------------------
+   PATHS
+------------------------------ */
+
+// const xPathD =
+// "m25 15 25 25 25-25 10 10-25 25 25 25-10 10-25-25-25 25-10-10 25-25-25-25Z";
+const xPathD =
+  "m25 8 25 25 25-25 20 20-25 25 25 25-20 20-25-25-25 25-20-20 25-25-25-25Z";
+
+const hourGlassPathD =
+  "M18 18h64c-4 10-16 20-26 30 10 10 22 24 26 38H18c4-14 16-28 26-38-10-10-22-20-26-30";
+
+const diamondPoint = "50,6 94,50 50,94 6,50";
+
+/* -----------------------------
+   STRIPE PATTERN
+------------------------------ */
+
+function StripeDefs(id: string, stroke: string) {
+  return (
+    <defs>
+      <pattern
+        id={id}
+        patternUnits="userSpaceOnUse"
+        width={STRIPE_SPACING}
+        height={STRIPE_SPACING}
+        patternTransform="rotate(45)"
+      >
+        <line
+          x1="0"
+          y1="0"
+          x2="0"
+          y2={STRIPE_SPACING}
+          stroke={stroke}
+          strokeWidth={STRIPE_STROKE}
+          opacity="0.75"
+        />
+      </pattern>
+    </defs>
+  );
+}
+
+/* -----------------------------
+   SHAPE
+------------------------------ */
+
+function Shape({
+  symbol,
+  fill,
+  stroke,
+  className,
+  stripeId,
+  striped,
+}: ShapeProps) {
   return (
     <svg viewBox="0 0 100 100" className={className}>
-      <polygon
-        points="50,5 95,50 50,95 5,50"
-        fill={fill}
-        stroke={stroke}
-        strokeWidth="8"
-        strokeLinejoin="round"
-      />
+      {striped && StripeDefs(stripeId, stroke)}
+
+      {symbol === "diamond" && (
+        <polygon
+          points={diamondPoint}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={STROKE}
+          strokeLinejoin="round"
+        />
+      )}
+
+      {symbol === "hourglass" && (
+        <path
+          d={hourGlassPathD}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={STROKE}
+          strokeLinejoin="round"
+        />
+      )}
+
+      {symbol === "x" && (
+        <path
+          d={xPathD}
+          fill={fill}
+          stroke={stroke}
+          strokeWidth={6}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      )}
     </svg>
   );
 }
 
-export function Hourglass({ fill, stroke, className }: ShapeProps) {
-  return (
-    <svg viewBox="0 0 100 100" className={className}>
-      <path
-        d="
-          M15 10
-          H85
-          L60 35
-          L50 50
-          L60 65
-          L85 90
-          H15
-          L40 65
-          L50 50
-          L40 35
-          Z
-        "
-        fill={fill}
-        stroke={stroke}
-        strokeWidth="8"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-export function XShape({ fill, stroke, className }: ShapeProps) {
-  return (
-    <svg viewBox="0 0 100 100" className={className}>
-      <path
-        d="
-          M20 10
-          L50 40
-          L80 10
-          L92 22
-          L62 50
-          L92 78
-          L80 90
-          L50 60
-          L20 90
-          L8 78
-          L38 50
-          L8 22
-          Z
-        "
-        fill={fill}
-        stroke={stroke}
-        strokeWidth="6"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+/* -----------------------------
+   MAIN RENDERER
+------------------------------ */
 
 export default function SymbolRenderer({
   symbol,
   color,
   texture,
+  count = 1,
   className = "w-full h-full overflow-visible",
 }: SymbolRendererProps) {
-  const stroke = COLORS[color];
+  const stroke = COLOR_MAP[color];
+
+  const stripeId = `stripe-${symbol}-${color}`;
 
   const fill =
     texture === "solid"
       ? stroke
       : texture === "striped"
-        ? "url(#set-striped)"
+        ? `url(#${stripeId})`
         : "transparent";
 
-  const shapeProps = {
-    fill,
-    stroke,
-    className,
-  };
-
-  switch (symbol) {
-    case "diamond":
-      return <Diamond {...shapeProps} />;
-
-    case "hourglass":
-      return <Hourglass {...shapeProps} />;
-
-    case "x":
-      return <XShape {...shapeProps} />;
-
-    default:
-      return null;
-  }
+  return (
+    <div className="flex items-center gap-1">
+      {Array.from({ length: count }, (_, i) => (
+        <Shape
+          key={`${symbol}-${texture}-${color}-${i}`}
+          symbol={symbol}
+          fill={fill}
+          stroke={stroke}
+          className={className}
+          stripeId={stripeId}
+          striped={texture === "striped"}
+        />
+      ))}
+    </div>
+  );
 }

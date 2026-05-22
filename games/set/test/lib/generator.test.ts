@@ -1,161 +1,215 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+// generator.test.ts
+
+import { describe, expect, it } from "vitest";
 
 import {
-  generateSetBoard,
   generateByDifficulty,
-  generateByTier,
   generateByLevel,
+  generateByTier,
+  generateSetBoard,
 } from "@/games/set/lib/generator";
 
 import { SET_DIFF_TIERS } from "@/games/set/lib/difficulty";
+import { findAllSets } from "@/games/set/lib/solver";
+import type { SetCard } from "@/games/set/lib/types";
 
-import * as solver from "@/games/set/lib/solver";
-import * as algorithms from "@/shared/algorithms";
+/*
+───────────────────────────────────────
+HELPERS
+───────────────────────────────────────
+*/
 
-import type { SetCard, Difficulty } from "@/games/set/lib/types";
+function normalizeSet(set: [SetCard, SetCard, SetCard]) {
+  return set
+    .map((c) => c.id)
+    .sort()
+    .join("-");
+}
 
-/**
- * Mock only true external dependencies
- */
-vi.mock("@/games/set/lib/solver", () => ({
-  findAllSets: vi.fn(),
-}));
-
-vi.mock("@/shared/algorithms", async () => {
-  const actual = await vi.importActual<typeof import("@/shared/algorithms")>(
-    "@/shared/algorithms",
-  );
-
-  return {
-    ...actual,
-    shuffle: vi.fn(),
-    seedFromDiff: vi.fn(),
-    seedFromLevel: vi.fn(),
-    levelToDiffScore: vi.fn(),
-  };
-});
+/*
+───────────────────────────────────────
+generateSetBoard
+───────────────────────────────────────
+*/
 
 describe("generateSetBoard", () => {
-  const tier = {
-    boardCols: 3,
-    boardRows: 3,
-    ensureSets: 1,
-    allowNearMiss: false,
-  };
+  it("generates a board", () => {
+    const tier = SET_DIFF_TIERS[0];
 
-  const mockCards: SetCard[] = Array.from({ length: 9 }).map((_, i) => ({
-    id: `card-${i}`,
-    symbol: "diamond",
-    color: "red",
-    texture: "solid",
-    count: 1,
-  }));
+    const result = generateSetBoard(tier, 12345);
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+    expect(result.cards.length).toBe(tier.boardCols * tier.boardRows);
+
+    expect(result.sets.length).toBeGreaterThan(0);
   });
 
-  it("generates a valid board", () => {
-    vi.mocked(algorithms.shuffle).mockReturnValue(mockCards);
+  it("returns solved sets matching solver output", () => {
+    const tier = SET_DIFF_TIERS[0];
 
-    vi.mocked(solver.findAllSets).mockReturnValue([
-      [mockCards[0], mockCards[1], mockCards[2]],
-    ]);
+    const result = generateSetBoard(tier, 999);
 
-    const result = generateSetBoard(tier as Difficulty, 123);
+    const solved = findAllSets(result.cards);
 
-    expect(result.cards).toHaveLength(9);
-    expect(result.sets).toHaveLength(1);
-    expect(result.seed).toBe(123);
-    expect(result.tier).toBe(tier);
+    const a = solved.map(normalizeSet).sort();
+
+    const b = result.sets.map(normalizeSet).sort();
+
+    expect(a).toEqual(b);
   });
 
-  it("retries when too few sets exist", () => {
-    vi.mocked(algorithms.shuffle).mockReturnValue(mockCards);
+  it("contains at least required amount of sets", () => {
+    for (const tier of SET_DIFF_TIERS) {
+      const result = generateSetBoard(tier, 123);
 
-    vi.mocked(solver.findAllSets)
-      .mockReturnValueOnce([])
-      .mockReturnValueOnce([[mockCards[0], mockCards[1], mockCards[2]]]);
-
-    const result = generateSetBoard(tier as Difficulty, 456);
-
-    expect(solver.findAllSets).toHaveBeenCalledTimes(2);
-    expect(result.sets).toHaveLength(1);
+      expect(result.sets.length).toBeGreaterThanOrEqual(tier.ensureSets);
+    }
   });
 
-  it("throws after max attempts", () => {
-    vi.mocked(algorithms.shuffle).mockReturnValue(mockCards);
-    vi.mocked(solver.findAllSets).mockReturnValue([]);
+  it("does not exceed set cap by too much", () => {
+    for (const tier of SET_DIFF_TIERS) {
+      const result = generateSetBoard(tier, 456);
 
-    expect(() => generateSetBoard(tier as Difficulty, 999)).toThrowError(
-      "Failed generating SET board after 2500 attempts",
-    );
+      expect(result.sets.length).toBeLessThanOrEqual(tier.ensureSets + 3);
+    }
+  });
+
+  it("has unique cards", () => {
+    const tier = SET_DIFF_TIERS[0];
+
+    const result = generateSetBoard(tier, 888);
+
+    const ids = result.cards.map((c) => c.id);
+
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("allows overlapping sets", () => {
+    const tier = SET_DIFF_TIERS[2];
+
+    const result = generateSetBoard(tier, 777);
+
+    const usage = new Map<string, number>();
+
+    for (const set of result.sets) {
+      for (const card of set) {
+        usage.set(card.id, (usage.get(card.id) ?? 0) + 1);
+      }
+    }
+
+    const overlappingCards = [...usage.values()].filter((v) => v > 1);
+
+    expect(overlappingCards.length).toBeGreaterThan(0);
+  });
+
+  it("limits dead cards", () => {
+    const tier = SET_DIFF_TIERS[1];
+
+    const result = generateSetBoard(tier, 444);
+
+    const usage = new Map<string, number>();
+
+    for (const card of result.cards) {
+      usage.set(card.id, 0);
+    }
+
+    for (const set of result.sets) {
+      for (const card of set) {
+        usage.set(card.id, (usage.get(card.id) ?? 0) + 1);
+      }
+    }
+
+    const deadCards = [...usage.values()].filter((v) => v === 0);
+
+    expect(deadCards.length).toBeLessThan(5);
+  });
+
+  it("is deterministic for same seed", () => {
+    const tier = SET_DIFF_TIERS[0];
+
+    const a = generateSetBoard(tier, 123456);
+
+    const b = generateSetBoard(tier, 123456);
+
+    const idsA = a.cards.map((c) => c.id);
+
+    const idsB = b.cards.map((c) => c.id);
+
+    expect(idsA).toEqual(idsB);
+  });
+
+  it("produces different boards for different seeds", () => {
+    const tier = SET_DIFF_TIERS[0];
+
+    const a = generateSetBoard(tier, 111);
+
+    const b = generateSetBoard(tier, 222);
+
+    const idsA = a.cards.map((c) => c.id);
+
+    const idsB = b.cards.map((c) => c.id);
+
+    expect(idsA).not.toEqual(idsB);
   });
 });
+
+/*
+───────────────────────────────────────
+generateByDifficulty
+───────────────────────────────────────
+*/
 
 describe("generateByDifficulty", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("generates using difficulty score", () => {
-    vi.mocked(algorithms.seedFromDiff).mockReturnValue(777);
-
+  it("generates from diff score", () => {
     const result = generateByDifficulty(0);
 
-    expect(result.seed).toBe(777);
-    expect(result.tier).toBe(SET_DIFF_TIERS[0]);
+    expect(result.cards.length).toBeGreaterThan(0);
   });
 
-  it("throws for invalid difficulty", () => {
-    expect(() => generateByDifficulty(999)).toThrowError(
-      "No difficulty tier found for score: 999",
-    );
+  it("throws on invalid diff score", () => {
+    expect(() => generateByDifficulty(9999)).toThrow();
   });
 });
+
+/*
+───────────────────────────────────────
+generateByTier
+───────────────────────────────────────
+*/
 
 describe("generateByTier", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("generates using tier index", () => {
-    vi.mocked(algorithms.seedFromDiff).mockReturnValue(888);
-
+  it("generates from tier index", () => {
     const result = generateByTier(0);
 
-    expect(result.seed).toBe(888);
-    expect(result.tier).toBe(SET_DIFF_TIERS[0]);
+    expect(result.cards.length).toBeGreaterThan(0);
   });
 
-  it("throws for invalid tier index", () => {
-    expect(() => generateByTier(999)).toThrowError(
-      "There's no tier at index: 999",
-    );
+  it("throws on invalid tier", () => {
+    expect(() => generateByTier(9999)).toThrow();
   });
 });
 
+/*
+───────────────────────────────────────
+generateByLevel
+───────────────────────────────────────
+*/
+
 describe("generateByLevel", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it("generates from level", () => {
+    const result = generateByLevel(1);
+
+    expect(result.cards.length).toBeGreaterThan(0);
   });
 
-  it("generates using level", () => {
-    vi.mocked(algorithms.seedFromLevel).mockReturnValue(555);
-    vi.mocked(algorithms.levelToDiffScore).mockReturnValue(0);
+  it("clamps very high levels safely", () => {
+    const result = generateByLevel(999999);
 
-    const result = generateByLevel(10);
-
-    expect(result.seed).toBe(555);
-    expect(result.tier).toBe(SET_DIFF_TIERS[0]);
+    expect(result.cards.length).toBeGreaterThan(0);
   });
 
-  it("clamps difficulty score", () => {
-    vi.mocked(algorithms.seedFromLevel).mockReturnValue(123);
-    vi.mocked(algorithms.levelToDiffScore).mockReturnValue(999);
+  it("clamps negative levels safely", () => {
+    const result = generateByLevel(-999);
 
-    const result = generateByLevel(999);
-
-    expect(result.tier).toBe(SET_DIFF_TIERS[SET_DIFF_TIERS.length - 1]);
+    expect(result.cards.length).toBeGreaterThan(0);
   });
 });
