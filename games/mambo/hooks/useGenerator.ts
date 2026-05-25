@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import type { MamboPuzzle, GeneratorMode } from "../types";
-import { generateMamboPuzzle } from "../lib/puzzle";
+import { generateMamboPuzzle } from "../lib/solver";
 import { levelToTierIdx } from "../lib/difficulty";
 
 export interface UseGeneratorReturn {
@@ -23,11 +23,11 @@ export interface UseGeneratorReturn {
 }
 
 export function useGenerator(): UseGeneratorReturn {
-  const [mode,       setMode]       = useState<GeneratorMode>("level");
-  const [level,      setLevel]      = useState(1);
+  const [mode, setMode] = useState<GeneratorMode>("level");
+  const [level, setLevel] = useState(1);
   const [levelInput, setLevelInput] = useState("1");
-  const [diffId,     setDiffId]     = useState(2);
-  const [puzzle,     setPuzzle]     = useState<MamboPuzzle | null>(null);
+  const [diffId, setDiffId] = useState(2);
+  const [puzzle, setPuzzle] = useState<MamboPuzzle | null>(null);
 
   // Per-diff counters (shown as #N badge on cards)
   const [diffCounters, setDiffCounters] = useState<number[]>(Array(9).fill(0));
@@ -44,14 +44,14 @@ export function useGenerator(): UseGeneratorReturn {
   }
 
   const generateByLevel = useCallback(() => {
-    const lv  = Math.max(1, parseInt(levelInput) || 1);
+    const lv = Math.max(1, parseInt(levelInput) || 1);
     setLevel(lv);
     setLevelInput(String(lv));
     const did = levelToTierIdx(lv);
     levelCounterRef.current[lv] = (levelCounterRef.current[lv] ?? 0) + 1;
     const data = generateMamboPuzzle(did);
     data.gameLevel = lv;
-    data.levelNum  = levelCounterRef.current[lv];
+    data.levelNum = levelCounterRef.current[lv];
     setPuzzle(data);
   }, [levelInput]);
 
@@ -71,10 +71,11 @@ export function useGenerator(): UseGeneratorReturn {
       setLevel(nextLv);
       setLevelInput(String(nextLv));
       const did = levelToTierIdx(nextLv);
-      levelCounterRef.current[nextLv] = (levelCounterRef.current[nextLv] ?? 0) + 1;
+      levelCounterRef.current[nextLv] =
+        (levelCounterRef.current[nextLv] ?? 0) + 1;
       const data = generateMamboPuzzle(did);
       data.gameLevel = nextLv;
-      data.levelNum  = levelCounterRef.current[nextLv];
+      data.levelNum = levelCounterRef.current[nextLv];
       setPuzzle(data);
     } else {
       // diff mode → same diff
@@ -86,11 +87,16 @@ export function useGenerator(): UseGeneratorReturn {
   }, [puzzle, diffCounters]);
 
   return {
-    mode, setMode,
-    level, setLevel,
-    levelInput, setLevelInput,
-    diffId, setDiffId,
-    puzzle, diffCounters,
+    mode,
+    setMode,
+    level,
+    setLevel,
+    levelInput,
+    setLevelInput,
+    diffId,
+    setDiffId,
+    puzzle,
+    diffCounters,
     generateByLevel,
     generateByDiff,
     generateNext,

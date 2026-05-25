@@ -12,18 +12,14 @@ export const SET_DIFF_TIERS: Difficulty[] = [
     - almost no traps
     ───────────────────────────────────────
     */
-
     name: "Easy",
     symbol: "◈",
-
     boardCols: 4,
     boardRows: 3,
-
     /**
      * Exact target set count
      */
     targetSets: 3,
-
     /**
      * Shared-card density
      *
@@ -183,4 +179,4 @@ export const SET_DIFF_TIERS: Difficulty[] = [
     timer: 90,
     hintPenalty: 25,
   },
-];
+] as const;

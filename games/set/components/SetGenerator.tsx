@@ -16,9 +16,10 @@ import { findAllSets } from "../lib/solver";
 
 import type { SetCard } from "../lib/types";
 
-import { SetCard as SetCardUI } from "./SetCard";
+import { CardUI as Card, SetCardUI } from "./SetCard";
 import SymbolRenderer from "./shape";
-import { FaMinus } from "react-icons/fa6";
+import { FaMinus, FaShuffle } from "react-icons/fa6";
+import { shuffle } from "@/shared/algorithms";
 
 export default function SetGenerator() {
   const [selectedTier, setSelectedTier] = useState<number>(0);
@@ -45,21 +46,6 @@ export default function SetGenerator() {
       .sort()
       .join("-");
   }
-
-  const sortSet = (set: [SetCard, SetCard, SetCard]) =>
-    [...set].sort(
-      (a, b) =>
-        a.count - b.count ||
-        a.color.localeCompare(b.color, "en-US", {
-          sensitivity: "base",
-        }) ||
-        a.texture.localeCompare(b.texture, "en-US", {
-          sensitivity: "base",
-        }) ||
-        a.symbol.localeCompare(b.symbol, "en-US", {
-          sensitivity: "base",
-        }),
-    );
 
   const remainingSets = useMemo(() => {
     const foundKeys = new Set(foundSets.map(normalizeSet));
@@ -200,6 +186,11 @@ export default function SetGenerator() {
     }
   }
 
+  const shuffleBoard = () => {
+    setBoard((prev) => (prev ? shuffle([...prev]) : prev));
+    setSelectedIds(new Set());
+    setHintIds(new Set());
+  };
   const tier = SET_DIFF_TIERS[selectedTier];
 
   return (
@@ -279,21 +270,11 @@ export default function SetGenerator() {
 
             <div className="flex gap-2 items-center justify-center flex-wrap">
               {foundSets.map((set, i) => (
-                <div
+                <SetCardUI
                   key={i}
-                  className="flex flex-col gap-2 justify-center items-center panel py-2 px-3 border-ok-rim bg-ok-bg w-22 h-22"
-                >
-                  {sortSet(set).map((card) => (
-                    <SymbolRenderer
-                      key={card.id}
-                      symbol={card.symbol}
-                      color={card.color}
-                      texture={card.texture}
-                      count={card.count}
-                      className="w-4"
-                    />
-                  ))}
-                </div>
+                  className="panel border-ok-rim bg-ok-bg"
+                  card={set}
+                />
               ))}
 
               {Array.from({
@@ -345,7 +326,7 @@ export default function SetGenerator() {
               const isHighlighted = hintIds.has(card.id);
 
               return (
-                <SetCardUI
+                <Card
                   key={card.id}
                   card={card}
                   selected={selectedIds.has(card.id)}
@@ -374,6 +355,13 @@ export default function SetGenerator() {
 
             <ControlButton onClick={() => setHintIds(new Set())}>
               Clear Hints
+            </ControlButton>
+
+            <ControlButton
+              onClick={() => shuffleBoard()}
+              className="flex gap-1 items-center"
+            >
+              <FaShuffle /> Shuffle
             </ControlButton>
 
             <ControlButton onClick={generate}>↺ New Board</ControlButton>

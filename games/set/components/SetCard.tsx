@@ -1,7 +1,7 @@
 // games/set/components/SetCard.tsx
 "use client";
 
-import { SetCard as SetCardType } from "../lib/types";
+import { SetCard, SetCard as SetCardType } from "../lib/types";
 import SymbolRenderer from "./shape";
 import { cn } from "@/shared/utils/cn";
 
@@ -15,7 +15,22 @@ interface SetCardProps {
   className?: string;
 }
 
-export function SetCard({
+const sortSet = (set: [SetCard, SetCard, SetCard]) =>
+  [...set].sort(
+    (a, b) =>
+      a.count - b.count ||
+      a.color.localeCompare(b.color, "en-US", {
+        sensitivity: "base",
+      }) ||
+      a.texture.localeCompare(b.texture, "en-US", {
+        sensitivity: "base",
+      }) ||
+      a.symbol.localeCompare(b.symbol, "en-US", {
+        sensitivity: "base",
+      }),
+  );
+
+export function CardUI({
   card,
   selected,
   highlighted,
@@ -64,6 +79,34 @@ export function SetCard({
         count={card.count}
         className={cn("w-full", dims.symbol)}
       />
+    </div>
+  );
+}
+
+export function SetCardUI({
+  card,
+  className,
+}: {
+  card: [SetCard, SetCard, SetCard];
+  className?: React.HTMLAttributes<HTMLDivElement>["className"];
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-2 justify-center items-center py-2 px-3 w-22 h-22",
+        className,
+      )}
+    >
+      {sortSet(card).map((c) => (
+        <SymbolRenderer
+          key={c.id}
+          symbol={c.symbol}
+          color={c.color}
+          texture={c.texture}
+          count={c.count}
+          className="w-4"
+        />
+      ))}
     </div>
   );
 }

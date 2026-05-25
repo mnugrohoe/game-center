@@ -12,5 +12,5 @@ export type SolState = "" | "king" | "territory" | "blocked";
 
 export interface HistoryEntry {
   states: CellState[][];
-  auto:   boolean[][];
+  auto: boolean[][];
 }

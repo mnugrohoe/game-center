@@ -185,26 +185,26 @@ export const TOWER_DIFF_TIERS: TowerDiffTier[] = [
     dim: "#7f0000",
     bright: "#ef9a9a",
   },
-];
+] as const;
 
+/**
+ * High-contrast tower color palette.
+ *
+ * Notes:
+ * - Optimized for visual separation.
+ * - Avoids overly similar neighboring hues.
+ * - Keeps saturation/value high for readability.
+ * - Limited to 10 colors for cleaner difficulty scaling.
+ */
 export const COLOR_POOL: string[] = [
-  "#f44336",
-  "#e91e63",
-  "#9c27b0",
-  "#673ab7",
-  "#3f51b5",
-  "#2196f3",
-  "#03a9f4",
-  "#00bcd4",
-  "#009688",
-  "#4caf50",
-  "#8bc34a",
-  "#cddc39",
-  "#ffeb3b",
-  "#ffc107",
-  "#ff9800",
-  "#ff5722",
-  "#795548",
-  "#9e9e9e",
-  "#607d8b",
-];
+  "#ff3b30", // vivid red
+  "#ff9500", // orange
+  "#ffcc00", // yellow
+  "#34c759", // green
+  "#00c7be", // teal
+  "#007aff", // blue
+  "#5856d6", // indigo
+  "#af52de", // purple
+  "#ff2d55", // pink
+  "#8e8e93", // gray
+] as const;

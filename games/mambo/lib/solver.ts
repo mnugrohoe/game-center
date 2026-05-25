@@ -10,18 +10,6 @@
  */
 
 import type { CellValue, Constraint, MamboPuzzle } from "../types";
-import { DIFF_TIERS } from "./difficulty";
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
 // ─── Placement validation ─────────────────────────────────────────────────────
 
@@ -84,7 +72,8 @@ export function solveMambo(
     if (pos === size * size) {
       // Final constraint check
       for (const cn of constraints) {
-        const a = g[cn.r1][cn.c1], b = g[cn.r2][cn.c2];
+        const a = g[cn.r1][cn.c1],
+          b = g[cn.r2][cn.c2];
         if (cn.type === "=" && a !== b) return false;
         if (cn.type === "x" && a === b) return false;
       }
@@ -102,14 +91,18 @@ export function solveMambo(
       // Early constraint pruning
       let ok = true;
       for (const cn of constraints) {
-        if (
-          (cn.r1 === r && cn.c1 === c) ||
-          (cn.r2 === r && cn.c2 === c)
-        ) {
-          const a = g[cn.r1][cn.c1], b = g[cn.r2][cn.c2];
+        if ((cn.r1 === r && cn.c1 === c) || (cn.r2 === r && cn.c2 === c)) {
+          const a = g[cn.r1][cn.c1],
+            b = g[cn.r2][cn.c2];
           if (a && b) {
-            if (cn.type === "=" && a !== b) { ok = false; break; }
-            if (cn.type === "x" && a === b) { ok = false; break; }
+            if (cn.type === "=" && a !== b) {
+              ok = false;
+              break;
+            }
+            if (cn.type === "x" && a === b) {
+              ok = false;
+              break;
+            }
           }
         }
       }
@@ -135,8 +128,7 @@ export function checkWin(grid: CellValue[][], puzzle: MamboPuzzle): boolean {
 
   // All cells must be filled
   for (let r = 0; r < size; r++)
-    for (let c = 0; c < size; c++)
-      if (!grid[r][c]) return false;
+    for (let c = 0; c < size; c++) if (!grid[r][c]) return false;
 
   // Row balance + no-triple
   for (let r = 0; r < size; r++) {
@@ -158,77 +150,11 @@ export function checkWin(grid: CellValue[][], puzzle: MamboPuzzle): boolean {
 
   // All constraints
   for (const cn of constraints) {
-    const a = grid[cn.r1][cn.c1], b = grid[cn.r2][cn.c2];
+    const a = grid[cn.r1][cn.c1],
+      b = grid[cn.r2][cn.c2];
     if (cn.type === "=" && a !== b) return false;
     if (cn.type === "x" && a === b) return false;
   }
 
   return true;
-}
-
-// ─── Generator ────────────────────────────────────────────────────────────────
-
-function generateSolution(size: number): CellValue[][] {
-  const grid: CellValue[][] = Array.from({ length: size }, () =>
-    Array(size).fill(0) as CellValue[],
-  );
-
-  function bt(pos: number): boolean {
-    if (pos === size * size) return true;
-    const r = Math.floor(pos / size), c = pos % size;
-    for (const val of shuffle([1, 2]) as CellValue[]) {
-      if (isValidPlacement(grid, r, c, val, size)) {
-        grid[r][c] = val;
-        if (bt(pos + 1)) return true;
-        grid[r][c] = 0;
-      }
-    }
-    return false;
-  }
-
-  bt(0);
-  return grid;
-}
-
-/**
- * Generates a full solvable Mambo puzzle for the given difficulty tier.
- *
- * @param diffId - Index into DIFF_TIERS (0–8).
- * @returns A MamboPuzzle ready to play.
- */
-export function generateMamboPuzzle(diffId: number): MamboPuzzle {
-  const tier = DIFF_TIERS[diffId];
-  const { gridSize: size, initRatio, constraintRatio } = tier;
-  const solution = generateSolution(size);
-
-  // Build all possible edges
-  const allEdges: Omit<Constraint, "type">[] = [];
-  for (let r = 0; r < size; r++)
-    for (let c = 0; c < size; c++) {
-      if (c + 1 < size) allEdges.push({ r1: r, c1: c, r2: r, c2: c + 1 });
-      if (r + 1 < size) allEdges.push({ r1: r, c1: c, r2: r + 1, c2: c });
-    }
-
-  // Cap constraints at 20% of edges
-  const maxCn = Math.min(
-    Math.floor(allEdges.length * constraintRatio),
-    Math.floor(allEdges.length * 0.2),
-  );
-  const constraints: Constraint[] = shuffle(allEdges)
-    .slice(0, maxCn)
-    .map((e) => ({
-      ...e,
-      type: solution[e.r1][e.c1] === solution[e.r2][e.c2] ? "=" : "x",
-    }));
-
-  // Choose which cells are pre-filled
-  const allCells = shuffle(
-    Array.from({ length: size * size }, (_, i) => i),
-  );
-  const initSet = new Set(allCells.slice(0, Math.floor(size * size * initRatio)));
-  const puzzle = solution.map((row, r) =>
-    row.map((val, c) => (initSet.has(r * size + c) ? val : 0)),
-  ) as CellValue[][];
-
-  return { puzzle, solution, constraints, size, diffId };
 }

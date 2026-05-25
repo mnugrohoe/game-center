@@ -1,2 +1,3 @@
 export * from "./difficulty";
-export * from "./puzzle";
+export * from "./solver";
+export * from "./generator";

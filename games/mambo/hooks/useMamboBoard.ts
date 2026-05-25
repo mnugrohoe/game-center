@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { CellValue, MamboPuzzle } from "../types";
-import { checkWin } from "../lib/puzzle";
+import { checkWin } from "../lib/solver";
 
 export interface MamboBoardState {
   userGrid: CellValue[][];

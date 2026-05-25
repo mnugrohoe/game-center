@@ -14,35 +14,36 @@ import { mkRng } from "./rng";
 // ── Core wave ────────────────────────────────────────────────────────────────
 
 export interface WaveDifficultyOptions {
-  level:           number;
-  minScore?:       number;  /* default 1   */
-  maxScore?:       number;  /* default 9   */
-  logBase?:        number;  /* default 1000 */
+  level: number;
+  minScore?: number; /* default 1   */
+  maxScore?: number; /* default 9   */
+  logBase?: number; /* default 1000 */
   waveAmplitudes?: [number, number, number]; /* default [0.9, 0.5, 0.3] */
-  waveFreqs?:      [number, number, number]; /* default [0.31, 0.07, 0.013] */
-  noiseAmp?:       number;  /* default 0.6 */
+  waveFreqs?: [number, number, number]; /* default [0.31, 0.07, 0.013] */
+  noiseAmp?: number; /* default 0.6 */
 }
 
 export function waveDifficulty(opts: WaveDifficultyOptions): number {
   const {
     level,
-    minScore       = 1,
-    maxScore       = 9,
-    logBase        = 1000,
+    minScore = 1,
+    maxScore = 9,
+    logBase = 1000,
     waveAmplitudes = [0.9, 0.5, 0.3],
-    waveFreqs      = [0.31, 0.07, 0.013],
-    noiseAmp       = 0.6,
+    waveFreqs = [0.31, 0.07, 0.013],
+    noiseAmp = 0.6,
   } = opts;
 
   const range = maxScore - minScore;
-  const base  = minScore + (range * Math.log(Math.max(1, level))) / Math.log(logBase);
+  const base =
+    minScore + (range * Math.log(Math.max(1, level))) / Math.log(logBase);
 
   const wave =
     waveAmplitudes[0] * Math.sin(level * waveFreqs[0] + 1.1) +
     waveAmplitudes[1] * Math.sin(level * waveFreqs[1] + 2.3) +
     waveAmplitudes[2] * Math.sin(level * waveFreqs[2] + 0.7);
 
-  const rng   = mkRng((level * 2654435761) ^ 0xc0ffee);
+  const rng = mkRng((level * 2654435761) ^ 0xc0ffee);
   const noise = (rng() - 0.5) * 2 * noiseAmp;
 
   return Math.max(minScore, Math.min(maxScore, base + wave + noise));
@@ -90,7 +91,7 @@ export function levelToTierIdx(level: number, numTiers: number): number {
 /** Sample the wave ±halfWindow around centerLevel for chart rendering. */
 export function sampleWave(
   centerLevel: number,
-  halfWindow  = 20,
+  halfWindow = 20,
   opts: Omit<WaveDifficultyOptions, "level"> = {},
 ): { level: number; score: number }[] {
   const result: { level: number; score: number }[] = [];

@@ -1,16 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { PuzzleParams } from "../lib/index";
+import { PuzzleParams, GenerateResult, getParamsByLevel } from "../lib/index";
 import {
   DIFF_TIERS,
-  diffScoreToParams,
-  seedFromLevel,
-  seedFromDiff,
-  mkRng,
-  generateKingsRegions,
+  generateByLevel,
+  generateByTierIdx,
+  getParamsByTierIdx,
 } from "../lib/index";
-import type { GenerateResult } from "../types";
 import { diffScoreToTierIdx, levelToDiffScore } from "@/shared/algorithms";
 
 export type GeneratorMode = "level" | "diff";
@@ -46,25 +43,20 @@ export function useGenerator(): UseGeneratorReturn {
   const generate = useCallback(() => {
     setGenerating(true);
     setTimeout(() => {
-      let diffScore: number;
-      let seed: number;
+      const diffScore: number =
+        mode === "level"
+          ? levelToDiffScore(currentLevel)
+          : DIFF_TIERS[selectedTier].diffScore;
 
-      if (mode === "level") {
-        diffScore = levelToDiffScore(currentLevel);
-        seed = seedFromLevel(currentLevel);
-      } else {
-        diffScore = DIFF_TIERS[selectedTier].diffScore;
-        seed = seedFromDiff(selectedTier, Date.now());
-      }
+      const params =
+        mode === "level"
+          ? getParamsByLevel(currentLevel)
+          : getParamsByTierIdx(selectedTier);
 
-      const rng = mkRng(seed);
-      const params = diffScoreToParams(diffScore, rng);
-      const result: GenerateResult | null = generateKingsRegions(
-        params.N,
-        rng,
-        params.compactness,
-        params.sizeVariance,
-      );
+      const result: GenerateResult | null =
+        mode === "level"
+          ? generateByLevel(currentLevel)
+          : generateByTierIdx(selectedTier);
 
       setGenerating(false);
       if (!result) {

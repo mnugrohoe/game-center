@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { MamboPuzzle } from "../../types";
 import { DIFF_TIERS } from "../../lib/difficulty";
-import { generateMamboPuzzle } from "../../lib/puzzle";
+import { generateMamboPuzzle } from "../../lib/solver";
 import { DiffPicker } from "../shared/DiffPicker";
 import { PlayableBoard } from "../shared/PlayableBoard";
 import { MamboTitle } from "../shared/MamboTitle";

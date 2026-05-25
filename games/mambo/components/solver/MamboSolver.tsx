@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import type { CellValue, Constraint } from "../../types";
-import { solveMambo } from "../../lib/puzzle";
+import { solveMambo } from "../../lib/solver";
 import { MamboBoard } from "../shared/MamboBoard";
 
-const SUN  = "☀";
+const SUN = "☀";
 const MOON = "◑";
 
 export default function MamboSolver() {
-  const [size,   setSize]   = useState(6);
-  const [grid,   setGrid]   = useState<CellValue[][]>(() =>
+  const [size, setSize] = useState(6);
+  const [grid, setGrid] = useState<CellValue[][]>(() =>
     Array.from({ length: 6 }, () => Array(6).fill(0) as CellValue[]),
   );
   const [constr, setConstr] = useState<Constraint[]>([]);
@@ -52,7 +52,9 @@ export default function MamboSolver() {
   }
 
   function handleReset() {
-    setGrid(Array.from({ length: size }, () => Array(size).fill(0) as CellValue[]));
+    setGrid(
+      Array.from({ length: size }, () => Array(size).fill(0) as CellValue[]),
+    );
     setConstr([]);
     setSolved(null);
   }
@@ -82,7 +84,7 @@ export default function MamboSolver() {
 
         <button
           onClick={handleSolve}
-          className="font-['Syne',sans-serif] font-bold text-[0.82rem] px-4 py-1.5 rounded-[10px] border-none bg-gradient-to-br from-[#f5c842] to-[#ff7c6e] text-[#0c0b13] cursor-pointer transition-all hover:opacity-90 hover:-translate-y-px"
+          className="font-['Syne',sans-serif] font-bold text-[0.82rem] px-4 py-1.5 rounded-[10px] border-none bg-linear-to-br from-[#f5c842] to-[#ff7c6e] text-[#0c0b13] cursor-pointer transition-all hover:opacity-90 hover:-translate-y-px"
         >
           ⚡ Solve
         </button>
@@ -96,8 +98,8 @@ export default function MamboSolver() {
       </div>
 
       <p className="font-mono text-[0.66rem] text-[#3a3855] text-center max-w-[480px] leading-[1.65]">
-        Click cell → blank → {SUN} → {MOON}.{" "}
-        Click gap between cells → add = or × (click again to toggle/remove).
+        Click cell → blank → {SUN} → {MOON}. Click gap between cells → add = or
+        × (click again to toggle/remove).
       </p>
 
       <MamboBoard

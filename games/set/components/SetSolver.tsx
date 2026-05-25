@@ -8,7 +8,7 @@ import SymbolRenderer from "./shape";
 import { COLORS, SYMBOLS, TEXTURES } from "../lib/constants";
 import { SetCard, SetColor, SetSymbol, SetTexture } from "../lib/types";
 import { findAllSets } from "../lib/solver";
-import { SetCard as SetCardUI } from "./SetCard";
+import { CardUI as SetCardUI } from "./SetCard";
 
 const COUNTS = [1, 2, 3] as const;
 
