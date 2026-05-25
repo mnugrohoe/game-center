@@ -10,3 +10,7 @@ export * from "./backtracking";
 export * from "./grid";
 export * from "./difficulty";
 export * from "./formatting";
+export * from "./validation";
+export * from "./metrics";
+export * from "./combinations";
+export * from "./constraints";

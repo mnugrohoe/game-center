@@ -163,6 +163,49 @@ http://localhost:3000
 
 ---
 
+# 📚 Shared Algorithms Documentation
+
+All puzzle games in this project use **game-agnostic algorithms** documented in shared modules.
+
+## 🎯 Quick Start
+
+**[→ START HERE: Algorithms Documentation](./START_HERE_ALGORITHMS.md)** ⭐
+
+### Documentation Files
+
+| File                                                                                         | Purpose                     | Size  |
+| -------------------------------------------------------------------------------------------- | --------------------------- | ----- |
+| [START_HERE_ALGORITHMS.md](./START_HERE_ALGORITHMS.md)                                       | Entry point & reading paths | 9 KB  |
+| [ALGORITHMS_INDEX.md](./ALGORITHMS_INDEX.md)                                                 | Navigation hub & lookup     | 11 KB |
+| [ALGORITHMS_ECOSYSTEM.md](./ALGORITHMS_ECOSYSTEM.md)                                         | Architecture & design       | 10 KB |
+| [shared/ALGORITHMS.md](./shared/ALGORITHMS.md)                                               | Complete API reference      | 20 KB |
+| [shared/algorithms/ALGORITHMS_QUICK_GUIDE.md](./shared/algorithms/ALGORITHMS_QUICK_GUIDE.md) | Quick patterns & examples   | 4 KB  |
+
+### 5 Core Modules
+
+1. **RNG** - Deterministic pseudo-random generation (Mulberry32)
+2. **Grid** - 2D grid algorithms (BFS, flood fill, regions)
+3. **Difficulty** - Wave-based difficulty scoring
+4. **Backtracking** - Generic constraint solver
+5. **Formatting** - Display text utilities
+
+### 50+ Functions Documented
+
+- 100+ code examples
+- 15+ common patterns
+- 10+ visual diagrams
+- Complete test coverage
+
+### Used By All Games
+
+- **Kings** → Grid, Difficulty, Backtracking
+- **Mambo** → Grid, Difficulty, RNG, Backtracking
+- **Set** → RNG, Backtracking, Formatting
+- **Shikaku** → Grid, RNG, Backtracking
+- **Tower** → Grid, RNG, Difficulty
+
+---
+
 # 🛠️ Tech Stack
 
 - Next.js
