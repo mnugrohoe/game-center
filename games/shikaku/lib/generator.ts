@@ -1,14 +1,18 @@
-import { mkRng } from "@/shared/algorithms";
-
+import {
+  clamp,
+  lerp,
+  mkRng,
+  seedFromDiff,
+  seedFromLevel,
+} from "@/shared/algorithms";
 import type { RectInfo } from "./types";
-
-import { area, isValidRect, getLabel, pickAnchor } from "./utils";
-
-import type { PuzzleParams } from "./difficulty";
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
+import { area, getLabel, pickAnchor } from "./utils";
+import {
+  SHIKAKU_TIERS,
+  getShikakuParamsByLevel,
+  getShikakuParamsByTierIdx,
+  type PuzzleParams,
+} from "./difficulty";
 
 type RectBase = {
   x: number;
@@ -37,56 +41,51 @@ export interface GeneratorOptions {
    * 1.0 = misleading anchors
    */
   anchorAmbiguity?: number;
+
+  /**
+   * true  = reject skinny rectangles
+   * false = only enforce minArea
+   */
+  aspectRatioMode?: boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
+export interface ShikakuPuzzle {
+  width: number;
+  height: number;
+  rectCount: number;
+  infos: RectInfo[];
 }
 
 function aspectRatio(rect: RectBase): number {
-  return Math.max(rect.w / rect.h, rect.h / rect.w);
+  const w = rect.w;
+  const h = rect.h;
+  return w > h ? w / h : h / w;
 }
 
-/**
- * Compactness-aware split position.
- *
- * High compactness:
- * - balanced cuts
- * - square-ish regions
- *
- * Low compactness:
- * - chaotic cuts
- * - long skinny regions
- */
-function biasedCut(
+function getValidCutRange(
+  length: number,
+  otherSide: number,
+  minArea: number,
+): [number, number] | null {
+  const minCut = Math.ceil(minArea / otherSide);
+  const maxCut = length - minCut;
+  return minCut <= maxCut ? [minCut, maxCut] : null;
+}
+
+function biasedCutInRange(
   rng: () => number,
-  size: number,
+  min: number,
+  max: number,
   compactness: number,
 ): number {
-  if (size <= 3) {
-    return 1;
-  }
+  if (min >= max) return min;
 
-  const center = size / 2;
+  const span = max - min;
+  const center = (min + max) * 0.5;
+  const spread = lerp(span * 0.15, span * 0.95, 1 - compactness);
 
-  const spread = lerp(size * 0.15, size * 0.95, 1 - compactness);
-
-  const cut = Math.round(center + (rng() - 0.5) * spread);
-
-  return clamp(cut, 1, size - 1);
+  return clamp(Math.round(center + (rng() - 0.5) * spread), min, max);
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Rectangle Selection
-// ─────────────────────────────────────────────────────────────────────────────
 
 function pickRectIndex(
   rng: () => number,
@@ -95,39 +94,36 @@ function pickRectIndex(
 ): number {
   const bias = lerp(1.0, 2.5, sizeVariance);
 
+  // One pass for total + cached weights; avoids calling Math.pow twice per rect.
+  const weights = new Float64Array(rects.length);
   let total = 0;
 
-  for (const r of rects) {
-    total += Math.pow(area(r), bias);
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    const weight = Math.pow(r.w * r.h, bias);
+    weights[i] = weight;
+    total += weight;
   }
 
   let target = rng() * total;
 
-  for (let i = 0; i < rects.length; i++) {
-    target -= Math.pow(area(rects[i]), bias);
-
-    if (target <= 0) {
-      return i;
-    }
+  for (let i = 0; i < weights.length; i++) {
+    target -= weights[i];
+    if (target <= 0) return i;
   }
 
-  return rects.length - 1;
+  return weights.length - 1;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Split Rectangle
-// ─────────────────────────────────────────────────────────────────────────────
 
 function splitRect(
   rng: () => number,
   rect: RectBase,
   options: Required<GeneratorOptions>,
 ): [RectBase, RectBase] | null {
-  const { minArea, compactness } = options;
+  const { minArea, compactness, aspectRatioMode } = options;
 
   const verticalFirst = rng() < 0.5;
-
-  const maxAspect = lerp(999, 2.2, compactness);
+  const maxAspect = aspectRatioMode ? lerp(999, 2.2, compactness) : Infinity;
 
   for (let attempt = 0; attempt < 10; attempt++) {
     const vertical =
@@ -139,68 +135,27 @@ function splitRect(
             ? verticalFirst
             : rng() < 0.5;
 
-    // ── Vertical Split ─────────────────────────────────────────────────────
+    const length = vertical ? rect.w : rect.h;
+    const otherSide = vertical ? rect.h : rect.w;
+    const range = getValidCutRange(length, otherSide, minArea);
 
-    if (vertical) {
-      if (rect.w <= 1) {
-        continue;
-      }
+    if (!range) continue;
 
-      const cut = biasedCut(rng, rect.w, compactness);
+    const [minCut, maxCut] = range;
+    const cut = biasedCutInRange(rng, minCut, maxCut, compactness);
 
-      const a: RectBase = {
-        x: rect.x,
-        y: rect.y,
-        w: cut,
-        h: rect.h,
-      };
+    const a = vertical
+      ? { x: rect.x, y: rect.y, w: cut, h: rect.h }
+      : { x: rect.x, y: rect.y, w: rect.w, h: cut };
 
-      const b: RectBase = {
-        x: rect.x + cut,
-        y: rect.y,
-        w: rect.w - cut,
-        h: rect.h,
-      };
+    const b = vertical
+      ? { x: rect.x + cut, y: rect.y, w: rect.w - cut, h: rect.h }
+      : { x: rect.x, y: rect.y + cut, w: rect.w, h: rect.h - cut };
 
-      if (!isValidRect(a, minArea) || !isValidRect(b, minArea)) {
-        continue;
-      }
-
-      // reject ugly skinny regions
-      if (aspectRatio(a) > maxAspect || aspectRatio(b) > maxAspect) {
-        continue;
-      }
-
-      return [a, b];
-    }
-
-    // ── Horizontal Split ───────────────────────────────────────────────────
-
-    if (rect.h <= 1) {
-      continue;
-    }
-
-    const cut = biasedCut(rng, rect.h, compactness);
-
-    const a: RectBase = {
-      x: rect.x,
-      y: rect.y,
-      w: rect.w,
-      h: cut,
-    };
-
-    const b: RectBase = {
-      x: rect.x,
-      y: rect.y + cut,
-      w: rect.w,
-      h: rect.h - cut,
-    };
-
-    if (!isValidRect(a, minArea) || !isValidRect(b, minArea)) {
-      continue;
-    }
-
-    if (aspectRatio(a) > maxAspect || aspectRatio(b) > maxAspect) {
+    if (
+      aspectRatioMode &&
+      (aspectRatio(a) > maxAspect || aspectRatio(b) > maxAspect)
+    ) {
       continue;
     }
 
@@ -210,30 +165,17 @@ function splitRect(
   return null;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Board Generator
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function generateBoard(
+export function generateShikakuBoard(
   width: number,
   height: number,
   n: number,
-  seed: number,
+  rng: () => number,
   options: GeneratorOptions = {},
 ): RectBase[] {
-  const finalOptions: Required<GeneratorOptions> = {
-    minArea: options.minArea ?? 2,
-
-    compactness: options.compactness ?? 0.5,
-
-    sizeVariance: options.sizeVariance ?? 0.5,
-
-    anchorAmbiguity: options.anchorAmbiguity ?? 0.5,
-  };
-
-  const { minArea } = finalOptions;
-
-  // ── Validation ───────────────────────────────────────────────────────────
+  const minArea = options.minArea ?? 2;
+  const compactness = options.compactness ?? 0.5;
+  const sizeVariance = options.sizeVariance ?? 0.5;
+  const anchorAmbiguity = options.anchorAmbiguity ?? 0.5;
 
   if (
     !Number.isInteger(width) ||
@@ -251,72 +193,100 @@ export function generateBoard(
     throw new Error("impossible board");
   }
 
-  const rng = mkRng(seed);
-
-  const rects: RectBase[] = [
-    {
-      x: 0,
-      y: 0,
-      w: width,
-      h: height,
-    },
-  ];
-
-  let guard = 0;
-
   const MAX_ITER = n * 300;
 
-  while (rects.length < n) {
-    guard++;
+  const passOptionsStrict: Required<GeneratorOptions> = {
+    minArea,
+    compactness,
+    sizeVariance,
+    anchorAmbiguity,
+    aspectRatioMode: true,
+  };
 
-    if (guard > MAX_ITER) {
-      throw new Error("generator stuck");
-    }
+  const passOptionsLoose: Required<GeneratorOptions> = {
+    minArea,
+    compactness,
+    sizeVariance,
+    anchorAmbiguity,
+    aspectRatioMode: false,
+  };
 
-    const index = pickRectIndex(rng, rects, finalOptions.sizeVariance);
+  const rects: RectBase[] = [{ x: 0, y: 0, w: width, h: height }];
 
-    const target = rects[index];
+  // Phase 1: try to satisfy aspect ratio.
+  for (let guard = 0; guard < MAX_ITER && rects.length < n; guard++) {
+    const index = pickRectIndex(rng, rects, sizeVariance);
+    const split = splitRect(rng, rects[index], passOptionsStrict);
 
-    const split = splitRect(rng, target, finalOptions);
+    if (!split) continue;
 
-    if (!split) {
-      continue;
-    }
+    rects[index] = split[0];
+    rects.push(split[1]);
+  }
 
-    rects.splice(index, 1, split[0], split[1]);
+  // Phase 2: keep the current board and finish without aspect ratio constraint.
+  for (let guard = 0; guard < MAX_ITER && rects.length < n; guard++) {
+    const index = pickRectIndex(rng, rects, sizeVariance);
+    const split = splitRect(rng, rects[index], passOptionsLoose);
+
+    if (!split) continue;
+
+    rects[index] = split[0];
+    rects.push(split[1]);
+  }
+
+  if (rects.length !== n) {
+    throw new Error("generator stuck");
   }
 
   return rects;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Puzzle Generator
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function generate(params: PuzzleParams, seed: number): RectInfo[] {
-  const rects = generateBoard(
+export function generateShikaku(
+  params: PuzzleParams,
+  rng: () => number,
+): ShikakuPuzzle {
+  const rects = generateShikakuBoard(
     params.width,
     params.height,
     params.rectCount,
-    seed,
+    rng,
     {
       minArea: params.minArea,
-
       compactness: params.compactness,
-
       sizeVariance: params.sizeVariance,
-
       anchorAmbiguity: params.anchorAmbiguity,
     },
   );
 
-  const rng = mkRng(seed ^ 0x9e3779b9);
-
-  return rects.map((rect, index) => ({
+  const infos = rects.map((rect, index) => ({
     label: getLabel(index),
-
     area: area(rect),
-
     anchor: pickAnchor(rng, rect, params.anchorAmbiguity),
   }));
+
+  return {
+    width: params.width,
+    height: params.height,
+    rectCount: rects.length,
+    infos,
+  };
 }
+
+export const generateShikakuByLevel = (level: number) => {
+  const seed = seedFromLevel(level);
+  const rng = mkRng(seed);
+  const params = getShikakuParamsByLevel(level, rng);
+  return generateShikaku(params, rng);
+};
+
+export const generateShikakuByTierIdx = (tierIdx: number) => {
+  if (tierIdx >= SHIKAKU_TIERS.length) {
+    throw new Error("Tier not found");
+  }
+
+  const seed = seedFromDiff(tierIdx, Date.now());
+  const rng = mkRng(seed);
+  const params = getShikakuParamsByTierIdx(tierIdx, rng);
+  return generateShikaku(params, rng);
+};

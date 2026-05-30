@@ -4,7 +4,7 @@
 
 import type { Cell, Rect, RectInfo } from "./types";
 
-const LABELS =
+export const LABELS =
   "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#$%&*+=";
 
 /**

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { solveShikaku, type RectInfo } from "./solver";
+import { solveShikaku } from "./solver";
+import { RectInfo } from "./types";
 
 describe("solveShikaku", () => {
   it("solves single rectangle puzzle", () => {

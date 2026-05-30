@@ -77,7 +77,7 @@ export function clamp(value: number, min: number, max: number): number {
  */
 export function diffScoreToTierIdx(score: number, numTiers: number): number {
   const norm = normalizeScore(score);
-  return Math.max(0, Math.min(numTiers - 1, Math.round(score) - 1));
+  return Math.max(0, Math.min(numTiers - 1, Math.round(norm) - 1));
 }
 
 /**

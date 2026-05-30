@@ -53,9 +53,9 @@ export interface DiffTier {
   name: string;
   icon: string;
   diffScore: number;
-  color: string; /* accent hex, e.g. "#4a9e6a"      */
-  dim: string; /* dimmed border, e.g. "#2a5e3a"    */
-  bright: string; /* bright text, e.g. "#7ed4a0"      */
+  color: ColorType; /* accent hex, e.g. "#4a9e6a"      */
+  dim: ColorType; /* dimmed border, e.g. "#2a5e3a"    */
+  bright: ColorType; /* bright text, e.g. "#7ed4a0"      */
 }
 
 // ── UI / layout ───────────────────────────────────────────────────────────────
@@ -68,3 +68,24 @@ export interface TabItem {
 
 /** The three fixed tabs every game page uses. */
 export type GameTabId = "game" | "solver" | "generator";
+
+// Hex format: #RRGGBB atau #RGB
+type HexColor = `#${string}`;
+
+// RGB format: rgb(0,0,0)
+type RGBColor = `rgb(${number},${number},${number})`;
+
+// RGBA format: rgba(0,0,0,0.5)
+type RGBAColor = `rgba(${number},${number},${number},${number})`;
+
+// HSL format: hsl(0,0%,0%)
+type HSLColor = `hsl(${number},${number}%,${number}%)`;
+
+// HSLA format: hsla(0,0%,0%,0.5)
+type HSLAColor = `hsla(${number},${number}%,${number}%,${number})`;
+
+// Gabungan semua tipe warna valid
+export type ColorType = HexColor | RGBColor | RGBAColor | HSLColor | HSLAColor;
+
+export type ClassNameType = React.HTMLAttributes<HTMLDivElement>["className"];
+export type StyleType = React.HTMLAttributes<HTMLDivElement>["style"];
