@@ -4,6 +4,7 @@ import GeneratorPanel, { GeneratorPanelProps } from "./GeneratorPanel";
 import { T } from "./tokens";
 import { Divider } from "./primitive";
 import { SolverPanelGenerator } from "./SolverPanel";
+import { ToolSelectionMode } from "@/shared/types";
 
 type ToolSelectionPanelProps = GeneratorPanelProps;
 
@@ -20,7 +21,7 @@ export default function ToolSelectionPanel({
   level,
   setLevel,
 }: ToolSelectionPanelProps) {
-  const [tool, setTool] = useState<"Generator" | "Solver">("Generator");
+  const [tool, setTool] = useState<ToolSelectionMode>("Generator");
   const color = tiers[tierIdx].color ?? T.accent;
   return (
     <>

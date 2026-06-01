@@ -4,12 +4,13 @@ import { useMemo } from "react";
 import { T } from "./tokens";
 import { PanelBody, SectionLabel, ParamRow, SeedRow } from "./primitive";
 import { GroupedItem, ParamItem } from "./GeneratorPanel";
+import { GeneratorMode } from "@/shared/types";
 
 interface ParamsPanelProps {
   seed: number;
   onChangeSeed: React.Dispatch<React.SetStateAction<number>>;
   params?: ParamItem[] | null;
-  mode: "Difficulty" | "Level";
+  mode: GeneratorMode;
 }
 
 export default function ParamsPanel({

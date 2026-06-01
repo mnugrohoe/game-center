@@ -15,7 +15,7 @@ export type RectBase = {
 };
 
 export type Rect = RectBase & {
-  id: string;
+  id: string | number;
 };
 
 export type userRect = Rect & {

@@ -5,7 +5,7 @@ import { T } from "./tokens";
 import DifficultyPicker, { DifficultyPickerProps } from "./DifficultyPicker";
 import LevelPicker, { LevelPickerProps } from "./LevelPicker";
 import { ParamRowProps } from "./primitive";
-import { DiffTier } from "@/shared/types";
+import { DiffTier, GeneratorMode } from "@/shared/types";
 import { levelToTierIdx } from "@/shared/algorithms";
 
 export interface PickerProps {
@@ -20,9 +20,9 @@ export interface PickerProps {
 
 export type GeneratorPanelProps = DifficultyPickerProps &
   LevelPickerProps & {
-    mode: "Difficulty" | "Level";
+    mode: GeneratorMode;
     level: number;
-    setMode: React.Dispatch<React.SetStateAction<"Difficulty" | "Level">>;
+    setMode: React.Dispatch<React.SetStateAction<GeneratorMode>>;
     setLevel: React.Dispatch<React.SetStateAction<number>>;
     onGenerate: () => void;
   };
@@ -62,7 +62,7 @@ export default function GeneratorPanel({
   const currentTier = safeTiers[tierIdx];
   const color = currentTier.color ?? T.accent;
 
-  const handleChangeTab = (newTab: "Difficulty" | "Level") => {
+  const handleChangeTab = (newTab: GeneratorMode) => {
     if (newTab === "Level") {
       const idx = levelToTierIdx(level, tiers.length);
       setTier(idx);

@@ -60,21 +60,55 @@ export const T: TType = {
   font: "var(--font-jetbrains-mono), var(--font-geist-mono), monospace",
 };
 
+function hslToLuminance(h: number, s: number, l: number) {
+  s /= 100;
+  l /= 100;
+
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+
+  let r = 0,
+    g = 0,
+    b = 0;
+
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+
+  r += m;
+  g += m;
+  b += m;
+
+  const linear = (v: number) =>
+    v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+
+  const R = linear(r);
+  const G = linear(g);
+  const B = linear(b);
+
+  return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+}
+
 /** Palette used for colouring game regions / pieces */
 export const colorFromIndex = (i: number) => {
   const hue = (i * 137.508) % 360;
   const saturation = [65, 75, 85][Math.floor(i / 360) % 3];
   const lightness = [50, 60, 70][Math.floor(i / 120) % 3];
-
+  const luminance = hslToLuminance(hue, saturation, lightness);
   return {
     bg: `${hue} ${saturation}% ${lightness}%`,
-    text: lightness - saturation * 0.15 > 55 ? "0 0% 0%" : "0 0% 100%",
+    text: luminance > 0.179 ? "0 0% 0%" : "0 0% 100%",
   };
 };
 
-/** Format milliseconds as M:SS */
+/** Format milliseconds as M:SS.mmm */
 export function formatTime(ms: number) {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
-  return `${m}:${String(s % 60).padStart(2, "0")}`;
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, "0")}`;
 }

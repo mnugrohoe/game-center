@@ -2,28 +2,18 @@
  * games/shikaku/ShikakuGrid.tsx
  */
 
-import React, { useLayoutEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { colorFromIndex, T } from "@/shared/components/ui/tokens";
 import LogoIcon from "./Logo";
 import { ShikakuPuzzle } from "../lib/generator";
-import { DragState, userRect } from "../lib/types";
+import useResponsiveCellSize from "@/shared/hooks/useResponsiveCellSize";
+import { useShikakuBoardCtx } from "./ShikakuBoardContext";
+import { Cell, DragState, RectBase, userRect } from "../lib/types";
+import { overlaps } from "../lib/utils";
+import { checkShikakuAnchor, checkShikakuComplete } from "../lib/validation";
 
-interface ShikakuGridProps {
-  puzzle?: ShikakuPuzzle | null;
-  rects?: userRect[];
-  dragState?: DragState | null;
-  gridRef?: React.Ref<HTMLDivElement>;
-  onDown?: React.MouseEventHandler<HTMLDivElement> &
-    React.TouchEventHandler<HTMLDivElement>;
-  onMove?: React.MouseEventHandler<HTMLDivElement> &
-    React.TouchEventHandler<HTMLDivElement>;
-  onUp?: React.MouseEventHandler<HTMLDivElement> &
-    React.TouchEventHandler<HTMLDivElement>;
-  onLeave?: React.MouseEventHandler<HTMLDivElement>;
-  disabled?: boolean;
-}
-
-function hashString(input: string) {
+function hashString(input: string | number) {
+  if (typeof input === "number") return input;
   let hash = 0;
   for (let i = 0; i < input.length; i++) {
     hash = (hash << 5) - hash + input.charCodeAt(i);
@@ -49,70 +39,41 @@ function hashString(input: string) {
  * handlers, allowing the parent component to manage rectangle creation
  * and editing state.
  *
- * @param props - Component properties.
- * @param props.puzzle - Current puzzle definition. If `null` or `undefined`,
- * the component renders an empty placeholder grid.
- * @param props.rects - Rectangles currently placed on the board.
- * Defaults to an empty array.
- * @param props.dragState - Active drag-selection state used to render a
- * preview rectangle while the user is dragging.
- * @param props.gridRef - Ref attached to the grid container element.
- * @param props.onDown - Mouse/touch press handler.
- * @param props.onMove - Mouse/touch move handler.
- * @param props.onUp - Mouse/touch release handler.
- * @param props.onLeave - Mouse/touch leave handler.
- * @param props.disabled - When `true`, interaction handlers are disabled
- * and the grid becomes read-only.
  *
  * @returns A responsive Shikaku grid with clue cells, rectangle overlays,
  * and optional drag preview.
  */
-export default function ShikakuGrid({
-  puzzle,
-  rects = [],
-  dragState = null,
-  gridRef,
-  onDown,
-  onMove,
-  onUp,
-  onLeave,
-  disabled = false,
-}: ShikakuGridProps) {
-  const [cellSize, setCellSize] = useState(50);
+export default function ShikakuGrid() {
+  const {
+    puzzle,
+    userRects,
+    isSolutionVisible,
+    solverSolution,
+    isComplete,
+    elapsedTime,
+    startTimer,
+    stopTimer,
+    setuserRects,
+  } = useShikakuBoardCtx();
+  const cellSize = useResponsiveCellSize({
+    rows: puzzle?.height,
+    cols: puzzle?.width,
+  });
+  const rects: userRect[] =
+    isSolutionVisible && solverSolution ? solverSolution : userRects;
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [attempt, setAttempt] = useState<number>(1);
 
-  useLayoutEffect(() => {
-    if (!puzzle) return;
-
-    const container = document.getElementById("game-container");
-    if (!container) return;
-
-    const update = () => {
-      const padding = 24;
-      const containerWidth = container.clientWidth - padding;
-      const containerHeight = container.clientHeight - padding;
-
-      const cellFromWidth = Math.floor(containerWidth / puzzle.width);
-      const cellFromHeight = Math.floor(containerHeight / puzzle.height);
-
-      setCellSize(Math.max(20, Math.min(cellFromWidth, cellFromHeight, 50)));
-    };
-
-    update();
-
-    const observer = new ResizeObserver(update);
-    observer.observe(container);
-    window.addEventListener("resize", update);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, [puzzle]);
+  const disabled = isSolutionVisible || isComplete;
 
   const { cellOwnerMap, anchorMap, rectColorMap } = useMemo(() => {
     const cellOwnerMap = new Map<string, (typeof rects)[number]>();
     const anchorMap = new Map<string, ShikakuPuzzle["infos"][number]>();
-    const rectColorMap = new Map<string, ReturnType<typeof colorFromIndex>>();
+    const rectColorMap = new Map<
+      string | number,
+      ReturnType<typeof colorFromIndex>
+    >();
 
     for (const r of rects) {
       rectColorMap.set(r.id, colorFromIndex(hashString(r.id)));
@@ -179,6 +140,83 @@ export default function ShikakuGrid({
       h: Math.abs(dragState.c.y - dragState.s.y) + 1,
     };
   }, [dragState]);
+
+  // ── Drag ──────────────────────────────────────────────────────────────────
+  function cellFromEvent(
+    e: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent,
+  ): Cell | null {
+    if (!gridRef.current || !puzzle) return null;
+    const rect = gridRef.current.getBoundingClientRect();
+
+    const cx = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const cy = "touches" in e ? e.touches[0].clientY : e.clientY;
+
+    const x = Math.floor((cx - rect.left) / cellSize);
+    const y = Math.floor((cy - rect.top) / cellSize);
+
+    if (x < 0 || y < 0 || x >= puzzle.width || y >= puzzle.height) {
+      return null;
+    }
+
+    return { x, y };
+  }
+
+  function onDown(e: React.MouseEvent | React.TouchEvent) {
+    if (!puzzle || isComplete || isSolutionVisible) return;
+    e.preventDefault();
+    if (elapsedTime === 0) startTimer();
+    const c = cellFromEvent(e);
+    if (c) setDragState({ s: c, c });
+  }
+
+  function onMove(e: React.MouseEvent | React.TouchEvent) {
+    if (!dragState) return;
+    e.preventDefault();
+    const c = cellFromEvent(e);
+
+    if (c) {
+      setDragState((d) => (d ? { ...d, c } : null));
+    }
+  }
+
+  function onUp(e: React.MouseEvent | React.TouchEvent) {
+    if (!dragState || !puzzle) {
+      setDragState(null);
+      return;
+    }
+
+    e.preventDefault();
+
+    const { s, c } = dragState;
+    const dr: RectBase = {
+      x: Math.min(s.x, c.x),
+      y: Math.min(s.y, c.y),
+      w: Math.abs(c.x - s.x) + 1,
+      h: Math.abs(c.y - s.y) + 1,
+    };
+
+    setDragState(null);
+    setAttempt((prev) => prev + 1);
+
+    setuserRects((prev) => {
+      const next = prev.filter((r) => !overlaps(r, dr));
+      const newRect: userRect = { id: `${attempt}`, ...dr };
+      newRect.validAnchor = checkShikakuAnchor(newRect, puzzle);
+
+      const merged = dr.w * dr.h !== 1 ? [...next, newRect] : [...next];
+      const isWin = checkShikakuComplete(merged, puzzle);
+      if (isWin) {
+        stopTimer();
+        setAttempt(1);
+      }
+
+      return merged;
+    });
+  }
+
+  function onLeave() {
+    setDragState(null);
+  }
 
   if (!puzzle) return <EmptyGrid />;
   const { width: W, height: H } = puzzle;

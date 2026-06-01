@@ -84,8 +84,10 @@ type HSLColor = `hsl(${number},${number}%,${number}%)`;
 // HSLA format: hsla(0,0%,0%,0.5)
 type HSLAColor = `hsla(${number},${number}%,${number}%,${number})`;
 
-// Gabungan semua tipe warna valid
 export type ColorType = HexColor | RGBColor | RGBAColor | HSLColor | HSLAColor;
 
 export type ClassNameType = React.HTMLAttributes<HTMLDivElement>["className"];
 export type StyleType = React.HTMLAttributes<HTMLDivElement>["style"];
+
+export type GeneratorMode = "Difficulty" | "Level" | "Customs";
+export type ToolSelectionMode = "Generator" | "Solver";
