@@ -1,101 +1,38 @@
-import type { Rect, RectInfo } from "./types";
+import { ShikakuPuzzle } from "./generator";
+import type { Rect, userRect } from "./types";
 
 /**
- * Validate solved board against puzzle infos
+ * Determines whether the player's solution completely covers
+ * the board and satisfies all anchor constraints.
  *
- * Rules:
- * - every rect label must exist in infos
- * - rect area must match info.area
- * - rect must contain its anchor
- * - rectangles must not overlap
- * - rectangles must fully cover board
+ * Conditions:
+ * - Rectangle count matches puzzle clues.
+ * - Every rectangle contains exactly one valid anchor.
+ * - Total covered area equals board area.
  */
-export function validateBoard(
-  width: number,
-  height: number,
-  rects: Rect[],
-  infos: RectInfo[],
+export function checkShikakuComplete(
+  rects: userRect[],
+  puzzle: ShikakuPuzzle,
 ): boolean {
-  const boardArea = width * height;
+  return (
+    rects.length === puzzle.infos.length &&
+    rects.every((rect) => rect.validAnchor) &&
+    rects.reduce((sum, rect) => sum + rect.w * rect.h, 0) ===
+      puzzle.width * puzzle.height
+  );
+}
 
-  // exact count
-  if (rects.length !== infos.length) {
-    return false;
-  }
+export function checkShikakuAnchor(rect: Rect, puzzle: ShikakuPuzzle): boolean {
+  const x2 = rect.x + rect.w;
+  const y2 = rect.y + rect.h;
 
-  const infoMap = new Map<string, RectInfo>();
+  const anchors = puzzle.infos.filter(
+    ({ anchor }) =>
+      anchor.x >= rect.x &&
+      anchor.x < x2 &&
+      anchor.y >= rect.y &&
+      anchor.y < y2,
+  );
 
-  for (const info of infos) {
-    // duplicate labels invalid
-    if (infoMap.has(info.label)) {
-      return false;
-    }
-
-    infoMap.set(info.label, info);
-  }
-
-  const used = new Uint8Array(boardArea);
-
-  let covered = 0;
-
-  for (const rect of rects) {
-    const info = infoMap.get(rect.label);
-
-    // unknown label
-    if (!info) {
-      return false;
-    }
-
-    // invalid dimensions
-    if (rect.w <= 0 || rect.h <= 0) {
-      return false;
-    }
-
-    // out of bounds
-    if (
-      rect.x < 0 ||
-      rect.y < 0 ||
-      rect.x + rect.w > width ||
-      rect.y + rect.h > height
-    ) {
-      return false;
-    }
-
-    // area mismatch
-    const rectArea = rect.w * rect.h;
-
-    if (rectArea !== info.area) {
-      return false;
-    }
-
-    // anchor containment
-    const ax = info.anchor.x;
-    const ay = info.anchor.y;
-
-    if (
-      ax < rect.x ||
-      ax >= rect.x + rect.w ||
-      ay < rect.y ||
-      ay >= rect.y + rect.h
-    ) {
-      return false;
-    }
-
-    // overlap detection
-    for (let y = rect.y; y < rect.y + rect.h; y++) {
-      for (let x = rect.x; x < rect.x + rect.w; x++) {
-        const k = y * width + x;
-
-        if (used[k]) {
-          return false;
-        }
-
-        used[k] = 1;
-        covered++;
-      }
-    }
-  }
-
-  // must fully cover board
-  return covered === boardArea;
+  return anchors.length === 1 && rect.w * rect.h === anchors[0].area;
 }

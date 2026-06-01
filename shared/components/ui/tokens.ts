@@ -57,46 +57,20 @@ export const T: TType = {
   radius2: 12,
 
   // ── Typography ────────────────────────────────────────────────────────────
-  font: "'JetBrains Mono','Fira Code','Consolas',monospace",
+  font: "var(--font-jetbrains-mono), var(--font-geist-mono), monospace",
 };
 
 /** Palette used for colouring game regions / pieces */
-export const PALETTE = [
-  "#6366f1",
-  "#8b5cf6",
-  "#a855f7",
-  "#ec4899",
-  "#f43f5e",
-  "#f97316",
-  "#eab308",
-  "#84cc16",
-  "#22c55e",
-  "#14b8a6",
-  "#06b6d4",
-  "#3b82f6",
-  "#d946ef",
-  "#ef4444",
-  "#f59e0b",
-  "#10b981",
-  "#0ea5e9",
-  "#c084fc",
-  "#22d3ee",
-  "#4ade80",
-  "#fb923c",
-  "#34d399",
-  "#60a5fa",
-  "#a3e635",
-];
+export const colorFromIndex = (i: number) => {
+  const hue = (i * 137.508) % 360;
+  const saturation = [65, 75, 85][Math.floor(i / 360) % 3];
+  const lightness = [50, 60, 70][Math.floor(i / 120) % 3];
 
-/** Labelset for indexing game pieces */
-export const LABEL_CHARS =
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#$%&*+=";
-
-/** Map a label character → palette colour */
-export function labelColor(label: string) {
-  const i = LABEL_CHARS.indexOf(label);
-  return PALETTE[(i < 0 ? label.charCodeAt(0) : i) % PALETTE.length];
-}
+  return {
+    bg: `${hue} ${saturation}% ${lightness}%`,
+    text: lightness - saturation * 0.15 > 55 ? "0 0% 0%" : "0 0% 100%",
+  };
+};
 
 /** Format milliseconds as M:SS */
 export function formatTime(ms: number) {

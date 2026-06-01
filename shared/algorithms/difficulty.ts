@@ -76,8 +76,8 @@ export function clamp(value: number, min: number, max: number): number {
  * @param numTiers   Total tiers (e.g. 9)
  */
 export function diffScoreToTierIdx(score: number, numTiers: number): number {
-  const norm = normalizeScore(score);
-  return Math.max(0, Math.min(numTiers - 1, Math.round(norm) - 1));
+  const norm = Math.max(0, Math.min(1, normalizeScore(score)));
+  return Math.min(numTiers - 1, Math.floor(norm * numTiers));
 }
 
 /**

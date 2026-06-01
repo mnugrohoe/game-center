@@ -2,16 +2,137 @@
  * Shikaku solver using shared backtracking algorithm
  */
 
-import { backtrack } from "@/shared/algorithms";
 import type { Rect, RectInfo } from "./types";
-import { gridKey, overlaps, paintCells } from "./utils";
-
-type Candidate = Rect & {
-  cells: Uint16Array;
-};
 
 /**
- * Input validation
+ * Solves a Shikaku puzzle using backtracking search with:
+ *
+ * - Candidate pre-generation
+ * - Prefix-sum anchor lookup
+ * - MRV (Minimum Remaining Values) heuristic
+ * - Forward checking
+ *
+ * The solver searches for a set of non-overlapping rectangles
+ * that exactly cover the board while satisfying all anchor clues.
+ *
+ * @param width Board width in cells.
+ * @param height Board height in cells.
+ * @param infos Puzzle clues.
+ *
+ * @returns Complete rectangle solution.
+ *
+ * @throws Error if:
+ * - puzzle input is invalid
+ * - a clue has no valid rectangle candidates
+ * - no solution exists
+ */
+export function solveShikaku(
+  width: number,
+  height: number,
+  infos: RectInfo[],
+): Rect[] {
+  validateInputs(width, height, infos);
+
+  const boardSize = width * height;
+
+  // occupied cells
+  const used = new Uint8Array(boardSize);
+
+  // anchor lookup grid
+  const anchorGrid = new Uint8Array(boardSize);
+
+  for (const info of infos) {
+    anchorGrid[info.anchor.y * width + info.anchor.x] = 1;
+  }
+
+  // prefix sum for anchor counting
+  const anchorPS = buildPrefixSum(width, height, anchorGrid);
+
+  const Rects = infos.map((info) => RectsFor(width, height, info, anchorPS));
+
+  for (let i = 0; i < Rects.length; i++) {
+    if (Rects[i].length === 0) {
+      throw new Error(`unsatisfiable region: ${infos[i].id}`);
+    }
+  }
+
+  const assigned = new Uint8Array(infos.length);
+
+  const solution: Rect[] = new Array(infos.length);
+
+  function search(depth: number): boolean {
+    if (depth === infos.length) {
+      return true;
+    }
+
+    // Dynamic MRV
+    let bestRegion = -1;
+    let bestCount = Number.MAX_SAFE_INTEGER;
+    let bestList: Rect[] = [];
+
+    for (let r = 0; r < infos.length; r++) {
+      if (assigned[r]) continue;
+
+      const valid: Rect[] = [];
+
+      for (const c of Rects[r]) {
+        if (!rectOverlaps(c, used, width)) {
+          valid.push(c);
+        }
+      }
+
+      if (valid.length === 0) {
+        return false;
+      }
+
+      if (valid.length < bestCount) {
+        bestCount = valid.length;
+        bestRegion = r;
+        bestList = valid;
+
+        if (bestCount === 1) break;
+      }
+    }
+
+    assigned[bestRegion] = 1;
+
+    for (const choice of bestList) {
+      fillRect(choice, used, width, 1);
+
+      solution[bestRegion] = choice;
+
+      if (forwardCheck(Rects, assigned, used, width)) {
+        if (search(depth + 1)) {
+          return true;
+        }
+      }
+
+      fillRect(choice, used, width, 0);
+    }
+
+    assigned[bestRegion] = 0;
+
+    return false;
+  }
+
+  if (!search(0)) {
+    throw new Error("no solution");
+  }
+
+  return solution;
+}
+
+/**
+ * Validates puzzle dimensions and clue data before solving.
+ *
+ * Checks:
+ * - board dimensions
+ * - duplicate ids
+ * - duplicate anchors
+ * - area consistency
+ * - anchor bounds
+ *
+ * @throws Error when puzzle data is malformed.
  */
 function validateInputs(
   width: number,
@@ -38,24 +159,24 @@ function validateInputs(
   const anchors = new Set<string>();
 
   for (const info of infos) {
-    if (!info.label) {
+    if (!info.id) {
       throw new Error("missing label");
     }
 
-    if (labels.has(info.label)) {
-      throw new Error(`duplicate label: ${info.label}`);
+    if (labels.has(info.id)) {
+      throw new Error(`duplicate label: ${info.id}`);
     }
 
-    labels.add(info.label);
+    labels.add(info.id);
 
     if (!Number.isInteger(info.area) || info.area <= 0) {
-      throw new Error(`invalid area: ${info.label}`);
+      throw new Error(`invalid area: ${info.id}`);
     }
 
     totalArea += info.area;
 
     if (info.area > boardArea) {
-      throw new Error(`area too large: ${info.label}`);
+      throw new Error(`area too large: ${info.id}`);
     }
 
     const { x, y } = info.anchor;
@@ -68,7 +189,7 @@ function validateInputs(
       x >= width ||
       y >= height
     ) {
-      throw new Error(`anchor out of bounds: ${info.label}`);
+      throw new Error(`anchor out of bounds: ${info.id}`);
     }
 
     const k = `${x},${y}`;
@@ -86,77 +207,35 @@ function validateInputs(
 }
 
 /**
- * Generate all valid rectangle candidates
+ * Generates all valid rectangle candidates for a clue.
+ *
+ * A candidate rectangle:
+ * - Has the required area.
+ * - Contains the clue anchor.
+ * - Contains no other anchors.
+ *
+ * These candidates form the search space used by
+ * the backtracking solver.
  */
-function candidatesFor(
+function RectsFor(
   width: number,
   height: number,
   info: RectInfo,
-  all: RectInfo[],
-): Candidate[] {
-  const out: Candidate[] = [];
+  anchorPS: Int32Array,
+): Rect[] {
+  const out: Rect[] = [];
 
   const target = info.area;
 
-  const ax = info.anchor.x;
-  const ay = info.anchor.y;
-
-  for (let rw = 1; rw <= target; rw++) {
+  for (let rw = 1; rw * rw <= target; rw++) {
     if (target % rw !== 0) continue;
 
     const rh = target / rw;
 
-    if (rw > width || rh > height) continue;
+    addFactor(width, height, info, anchorPS, rw, rh, out);
 
-    const startX = Math.max(0, ax - rw + 1);
-    const endX = Math.min(ax, width - rw);
-
-    const startY = Math.max(0, ay - rh + 1);
-    const endY = Math.min(ay, height - rh);
-
-    for (let y = startY; y <= endY; y++) {
-      for (let x = startX; x <= endX; x++) {
-        const x2 = x + rw;
-        const y2 = y + rh;
-
-        let valid = true;
-
-        // no foreign anchors
-        for (let i = 0; i < all.length; i++) {
-          const other = all[i];
-
-          if (other === info) continue;
-
-          const ox = other.anchor.x;
-          const oy = other.anchor.y;
-
-          if (ox >= x && ox < x2 && oy >= y && oy < y2) {
-            valid = false;
-            break;
-          }
-        }
-
-        if (!valid) continue;
-
-        const cells = new Uint16Array(target);
-
-        let ptr = 0;
-
-        for (let yy = y; yy < y2; yy++) {
-          for (let xx = x; xx < x2; xx++) {
-            cells[ptr++] = gridKey(xx, yy, width);
-          }
-        }
-
-        out.push({
-          label: info.label,
-          x,
-          y,
-          w: rw,
-          h: rh,
-          cells,
-        });
-      }
+    if (rw !== rh) {
+      addFactor(width, height, info, anchorPS, rh, rw, out);
     }
   }
 
@@ -164,70 +243,184 @@ function candidatesFor(
 }
 
 /**
- * Solve Shikaku puzzle using shared backtracking with MRV heuristic
+ * Generates candidate rectangles for a specific
+ * width/height factor pair.
  *
- * @throws Error if puzzle is invalid or has no solution
+ * Every generated rectangle:
+ * - Covers the clue anchor.
+ * - Contains exactly one anchor.
  */
-export function solveShikaku(
+function addFactor(
   width: number,
   height: number,
-  infos: RectInfo[],
-): Rect[] {
-  validateInputs(width, height, infos);
+  info: RectInfo,
+  anchorPS: Int32Array,
+  rw: number,
+  rh: number,
+  out: Rect[],
+) {
+  if (rw > width || rh > height) {
+    return;
+  }
 
-  const used = new Uint8Array(width * height);
+  const ax = info.anchor.x;
+  const ay = info.anchor.y;
 
-  const candidates = infos.map((info) =>
-    candidatesFor(width, height, info, infos),
-  );
+  const startX = Math.max(0, ax - rw + 1);
+  const endX = Math.min(ax, width - rw);
 
-  // impossible regions
-  for (let i = 0; i < candidates.length; i++) {
-    if (candidates[i].length === 0) {
-      throw new Error(`unsatisfiable region: ${infos[i].label}`);
+  const startY = Math.max(0, ay - rh + 1);
+  const endY = Math.min(ay, height - rh);
+
+  for (let y = startY; y <= endY; y++) {
+    for (let x = startX; x <= endX; x++) {
+      if (countAnchors(anchorPS, width, x, y, rw, rh) !== 1) {
+        continue;
+      }
+
+      out.push({
+        id: info.id,
+        x,
+        y,
+        w: rw,
+        h: rh,
+      });
+    }
+  }
+}
+
+/**
+ * Builds a summed-area table (prefix sum grid)
+ * for constant-time anchor counting.
+ *
+ * Query complexity:
+ * - Build: O(width × height)
+ * - Rectangle count query: O(1)
+ */
+function buildPrefixSum(
+  width: number,
+  height: number,
+  grid: Uint8Array,
+): Int32Array {
+  const ps = new Int32Array((width + 1) * (height + 1));
+
+  for (let y = 1; y <= height; y++) {
+    let row = 0;
+
+    for (let x = 1; x <= width; x++) {
+      row += grid[(y - 1) * width + (x - 1)];
+
+      ps[y * (width + 1) + x] = ps[(y - 1) * (width + 1) + x] + row;
     }
   }
 
-  // MRV ordering: sort by number of candidates (fewer first)
-  const order = [...infos.keys()].sort(
-    (a, b) => candidates[a].length - candidates[b].length,
+  return ps;
+}
+
+/**
+ * Counts anchors inside a rectangle using the
+ * precomputed prefix-sum table.
+ *
+ * Complexity: O(1)
+ */
+function countAnchors(
+  ps: Int32Array,
+  width: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): number {
+  const stride = width + 1;
+
+  const x2 = x + w;
+  const y2 = y + h;
+
+  return (
+    ps[y2 * stride + x2] -
+    ps[y * stride + x2] -
+    ps[y2 * stride + x] +
+    ps[y * stride + x]
   );
+}
 
-  const solution: Rect[] = new Array(infos.length);
+/**
+ * Checks whether a candidate rectangle overlaps
+ * any already assigned cells.
+ *
+ * @returns true if overlap exists.
+ */
+function rectOverlaps(rect: Rect, used: Uint8Array, width: number): boolean {
+  const x2 = rect.x + rect.w;
+  const y2 = rect.y + rect.h;
 
-  const result = backtrack<Candidate, Rect[]>({
-    totalSteps: order.length,
+  for (let y = rect.y; y < y2; y++) {
+    let idx = y * width + rect.x;
 
-    candidates: (step: number) => {
-      const idx = order[step];
-      return candidates[idx];
-    },
-
-    isValid: (choice: Candidate) => {
-      return !overlaps(choice.cells, used);
-    },
-
-    apply: (choice: Candidate, step: number) => {
-      paintCells(choice.cells, used, 1);
-      solution[step] = {
-        label: choice.label,
-        x: choice.x,
-        y: choice.y,
-        w: choice.w,
-        h: choice.h,
-      };
-    },
-
-    undo: (choice: Candidate) => {
-      paintCells(choice.cells, used, 0);
-    },
-
-    buildSolution: () => solution,
-  });
-
-  if (!result.found) {
-    throw new Error("no solution");
+    for (let x = rect.x; x < x2; x++) {
+      if (used[idx++]) {
+        return true;
+      }
+    }
   }
 
-  return result.solution!;
+  return false;
+}
+
+/**
+ * Marks or clears cells occupied by a rectangle.
+ *
+ * Used during backtracking assignment and rollback.
+ */
+function fillRect(
+  rect: Rect,
+  used: Uint8Array,
+  width: number,
+  value: 0 | 1,
+): void {
+  const x2 = rect.x + rect.w;
+  const y2 = rect.y + rect.h;
+
+  for (let y = rect.y; y < y2; y++) {
+    let idx = y * width + rect.x;
+
+    for (let x = rect.x; x < x2; x++) {
+      used[idx++] = value;
+    }
+  }
+}
+
+/**
+ * Performs forward checking after assigning a region.
+ *
+ * Ensures every unassigned clue still has at least one
+ * non-overlapping candidate remaining.
+ *
+ * This significantly reduces the search tree by
+ * pruning impossible branches early.
+ */
+function forwardCheck(
+  Rects: Rect[][],
+  assigned: Uint8Array,
+  used: Uint8Array,
+  width: number,
+): boolean {
+  for (let r = 0; r < Rects.length; r++) {
+    if (assigned[r]) continue;
+
+    let possible = false;
+
+    for (const c of Rects[r]) {
+      if (!rectOverlaps(c, used, width)) {
+        possible = true;
+        break;
+      }
+    }
+
+    if (!possible) {
+      return false;
+    }
+  }
+
+  return true;
 }

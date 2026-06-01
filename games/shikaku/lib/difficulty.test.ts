@@ -1,153 +1,138 @@
-// difficulty.test.ts
-
 import { describe, it, expect } from "vitest";
 
 import {
   SHIKAKU_TIERS,
-  diffScoreToParams,
+  generateShikakuParams,
   getShikakuParamsByLevel,
   getShikakuParamsByTierIdx,
 } from "./difficulty";
 
-import { mkRng } from "@/shared/algorithms";
+describe("generateShikakuParams", () => {
+  it("should be deterministic with same seed", () => {
+    const a = generateShikakuParams(3, 12345);
+    const b = generateShikakuParams(3, 12345);
 
-describe("SHIKAKU_TIERS", () => {
-  it("tiers are ordered by diffScore", () => {
-    for (let i = 1; i < SHIKAKU_TIERS.length; i++) {
-      expect(SHIKAKU_TIERS[i].diffScore).toBeGreaterThan(
-        SHIKAKU_TIERS[i - 1].diffScore,
+    expect(a).toEqual(b);
+  });
+
+  it("should generate board size within tier limits", () => {
+    SHIKAKU_TIERS.forEach((tier) => {
+      const params = generateShikakuParams(tier.diffScore, 999);
+
+      expect(params.width).toBeGreaterThanOrEqual(tier.minBoard);
+      expect(params.width).toBeLessThanOrEqual(tier.maxBoard);
+
+      expect(params.height).toBeGreaterThanOrEqual(tier.minBoard);
+      expect(params.height).toBeLessThanOrEqual(tier.maxBoard);
+    });
+  });
+
+  it("should always use minimum area 2", () => {
+    const params = generateShikakuParams(5, 123);
+
+    expect(params.minArea).toBe(2);
+  });
+
+  it("should keep compactness in valid range", () => {
+    for (let score = 1; score <= 9; score++) {
+      const params = generateShikakuParams(score, 123);
+
+      expect(params.compactness).toBeGreaterThanOrEqual(0.1);
+      expect(params.compactness).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("should keep size variance in valid range", () => {
+    for (let score = 1; score <= 9; score++) {
+      const params = generateShikakuParams(score, 123);
+
+      expect(params.sizeVariance).toBeGreaterThanOrEqual(0);
+      expect(params.sizeVariance).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("should keep anchor ambiguity in valid range", () => {
+    for (let score = 1; score <= 9; score++) {
+      const params = generateShikakuParams(score, 123);
+
+      expect(params.anchorAmbiguity).toBeGreaterThanOrEqual(0);
+      expect(params.anchorAmbiguity).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("should generate valid rectangle count", () => {
+    for (let score = 1; score <= 9; score++) {
+      const params = generateShikakuParams(score, 123);
+
+      const boardArea = params.width * params.height;
+
+      expect(params.rectCount).toBeGreaterThanOrEqual(4);
+      expect(params.rectCount).toBeLessThanOrEqual(
+        Math.floor(boardArea / params.minArea),
       );
     }
   });
 
-  it("all tiers have valid board ranges", () => {
-    for (const tier of SHIKAKU_TIERS) {
-      expect(tier.minBoard).toBeGreaterThan(0);
-      expect(tier.maxBoard).toBeGreaterThanOrEqual(tier.minBoard);
-    }
-  });
-});
-
-describe("diffScoreToParams", () => {
-  it("creates valid params for every tier", () => {
-    for (let score = 1; score <= SHIKAKU_TIERS.length; score++) {
-      const rng = mkRng(score);
-      const p = diffScoreToParams(score, rng);
-
-      const boardArea = p.width * p.height;
-
-      expect(p.width).toBeGreaterThan(0);
-      expect(p.height).toBeGreaterThan(0);
-
-      expect(p.rectCount).toBeGreaterThan(0);
-
-      expect(p.minArea).toBeGreaterThanOrEqual(2);
-      expect(p.minArea).toBeLessThanOrEqual(8);
-
-      expect(p.compactness).toBeGreaterThanOrEqual(0.1);
-      expect(p.compactness).toBeLessThanOrEqual(1);
-
-      expect(p.sizeVariance).toBeGreaterThanOrEqual(0);
-      expect(p.sizeVariance).toBeLessThanOrEqual(1);
-
-      expect(p.anchorAmbiguity).toBeGreaterThanOrEqual(0);
-      expect(p.anchorAmbiguity).toBeLessThanOrEqual(1);
-
-      // Most important invariant
-      expect(p.minArea * p.rectCount).toBeLessThanOrEqual(boardArea);
-    }
-  });
-
-  it("clamps scores below minimum", () => {
-    const low = diffScoreToParams(-100, mkRng(1));
-    const beginner = diffScoreToParams(1, mkRng(1));
-
-    expect(low).toEqual(beginner);
-  });
-
-  it("clamps scores above maximum", () => {
-    const high = diffScoreToParams(999, mkRng(1));
-    const nightmare = diffScoreToParams(SHIKAKU_TIERS.length, mkRng(1));
-
-    expect(high).toEqual(nightmare);
-  });
-
-  it("hard tiers are more ambiguous than easy tiers", () => {
-    const easy = diffScoreToParams(1, mkRng(1));
-    const hard = diffScoreToParams(SHIKAKU_TIERS.length, mkRng(1));
+  it("should increase ambiguity as difficulty increases", () => {
+    const easy = generateShikakuParams(1, 123);
+    const hard = generateShikakuParams(9, 123);
 
     expect(hard.anchorAmbiguity).toBeGreaterThan(easy.anchorAmbiguity);
   });
 
-  it("hard tiers have larger variance", () => {
-    const easy = diffScoreToParams(1, mkRng(1));
-    const hard = diffScoreToParams(SHIKAKU_TIERS.length, mkRng(1));
-
-    expect(hard.sizeVariance).toBeGreaterThan(easy.sizeVariance);
-  });
-
-  it("hard tiers have lower compactness", () => {
-    const easy = diffScoreToParams(1, mkRng(1));
-    const hard = diffScoreToParams(SHIKAKU_TIERS.length, mkRng(1));
+  it("should decrease compactness as difficulty increases", () => {
+    const easy = generateShikakuParams(1, 123);
+    const hard = generateShikakuParams(9, 123);
 
     expect(hard.compactness).toBeLessThan(easy.compactness);
-  });
-
-  it("always satisfies area capacity constraint", () => {
-    for (let score = 1; score <= SHIKAKU_TIERS.length; score++) {
-      for (let seed = 0; seed < 100; seed++) {
-        const p = diffScoreToParams(score, mkRng(seed));
-
-        const boardArea = p.width * p.height;
-
-        expect(p.rectCount, `score=${score} seed=${seed}`).toBeLessThanOrEqual(
-          Math.floor(boardArea / p.minArea),
-        );
-
-        expect(
-          p.minArea * p.rectCount,
-          `score=${score} seed=${seed}`,
-        ).toBeLessThanOrEqual(boardArea);
-      }
-    }
   });
 });
 
 describe("getShikakuParamsByLevel", () => {
-  it("returns valid params", () => {
-    const rng = mkRng(123);
-    const params = getShikakuParamsByLevel(1, rng);
+  it("should be deterministic for same level", () => {
+    const a = getShikakuParamsByLevel(50);
+    const b = getShikakuParamsByLevel(50);
 
-    expect(params.width).toBeGreaterThan(0);
-    expect(params.height).toBeGreaterThan(0);
+    expect(a).toEqual(b);
+  });
+
+  it("should allow explicit seed override", () => {
+    const a = getShikakuParamsByLevel(50, 123);
+    const b = getShikakuParamsByLevel(50, 123);
+
+    expect(a).toEqual(b);
+  });
+
+  it("should produce different results for different seeds", () => {
+    const a = getShikakuParamsByLevel(50, 111);
+    const b = getShikakuParamsByLevel(50, 222);
+
+    expect(a).not.toEqual(b);
   });
 });
 
 describe("getShikakuParamsByTierIdx", () => {
-  it("returns params for every tier", () => {
-    const rng = mkRng(777);
-    for (let i = 0; i < SHIKAKU_TIERS.length; i++) {
-      const params = getShikakuParamsByTierIdx(i, rng);
+  it("should use correct tier boundaries", () => {
+    SHIKAKU_TIERS.forEach((tier, idx) => {
+      const params = getShikakuParamsByTierIdx(idx, 123);
 
-      expect(params.width).toBeGreaterThan(0);
-      expect(params.height).toBeGreaterThan(0);
-    }
+      expect(params.width).toBeGreaterThanOrEqual(tier.minBoard);
+
+      expect(params.width).toBeLessThanOrEqual(tier.maxBoard);
+    });
   });
 
-  it("uses provided rng", () => {
-    const rngA = mkRng(456);
-    const rngB = mkRng(789);
-    const a = getShikakuParamsByTierIdx(0, rngA);
-    const b = getShikakuParamsByTierIdx(0, rngB);
+  it("should be deterministic with same seed", () => {
+    const a = getShikakuParamsByTierIdx(4, 999);
+    const b = getShikakuParamsByTierIdx(4, 999);
 
-    expect(a).not.toEqual(b);
+    expect(a).toEqual(b);
   });
 
   it("visual get 10 params from low tier", () => {
     const params = [];
-    for (let i = 0; i < 10; i++) {
-      const rng = mkRng(i);
-      const param = getShikakuParamsByTierIdx(0, rng);
+    for (let i = 1; i <= 10; i++) {
+      const param = getShikakuParamsByTierIdx(0, i);
       params.push(param);
     }
     console.log("======== PARAMS LOW =========");
@@ -156,9 +141,8 @@ describe("getShikakuParamsByTierIdx", () => {
 
   it("visual get 10 params from high tier", () => {
     const params = [];
-    for (let i = 0; i < 10; i++) {
-      const rng = mkRng(i);
-      const param = getShikakuParamsByTierIdx(SHIKAKU_TIERS.length - 1, rng);
+    for (let i = 1; i <= 10; i++) {
+      const param = getShikakuParamsByTierIdx(SHIKAKU_TIERS.length - 1, i);
       params.push(param);
     }
     console.log("======== PARAMS HIGH =========");

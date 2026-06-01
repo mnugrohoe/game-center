@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 
 // shared UI
 import GameShell from "@/shared/components/layout/GameShell";
-import DifficultyPicker from "@/shared/components/ui/DifficultyPicker";
+import { ParamItem } from "@/shared/components/ui/GeneratorPanel";
 import SolverPanel, {
   ActionDef,
   StatItem,
@@ -13,71 +13,48 @@ import { SolveBanner, SolverStatusBar } from "@/shared/components/ui/primitive";
 import { T, formatTime } from "@/shared/components/ui/tokens";
 
 // shikaku-specific
-import ShikakuGrid, { CELL } from "@/games/shikaku/components/ShikakuGrid";
-import AnchorList from "@/games/shikaku/components/AnchorList";
-import { DIFF_TIERS } from "@/games/kings/lib";
+import ShikakuGrid from "@/games/shikaku/components/ShikakuGrid";
 import {
+  generateShikakuByLevel,
   generateShikakuByTierIdx,
   ShikakuPuzzle,
 } from "@/games/shikaku/lib/generator";
 import { solveShikaku } from "@/games/shikaku/lib/solver";
-
-//
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-type Point = {
-  x: number;
-  y: number;
-};
-
-type Rect = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  label: string;
-};
-
-type DragState = {
-  s: Point;
-  c: Point;
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Logo icon
-// ─────────────────────────────────────────────────────────────────────────────
-const LogoIcon = () => (
-  <div className="grid grid-cols-3 grid-rows-3 w-full gap-0 h-full text-black">
-    <div className="row-span-2 bg-blue-300 flex items-center justify-center h-2/3">
-      2
-    </div>
-
-    <div className="col-span-2 row-span-2 bg-green-300 flex items-start justify-start h-2/3">
-      4
-    </div>
-
-    <div className="col-span-3 bg-yellow-300 flex items-center justify-center h-1/3">
-      3
-    </div>
-  </div>
-);
+import {
+  checkShikakuAnchor,
+  checkShikakuComplete,
+} from "@/games/shikaku/lib/validation";
+import LogoIcon from "@/games/shikaku/components/Logo";
+import { Cell, DragState, Rect, userRect } from "@/games/shikaku/lib/types";
+import { overlaps } from "@/games/shikaku/lib/utils";
+import {
+  getShikakuParamsByLevel,
+  getShikakuParamsByTierIdx,
+  levelToTierIdx,
+  SHIKAKU_TIERS,
+  ShikakuParams,
+} from "@/games/shikaku/lib/difficulty";
+import ParamsPanel from "@/shared/components/ui/ParamsPanel";
+import ToolSelectionPanel from "@/shared/components/ui/ToolSelectionPanel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ShikakuGame() {
   // ── Generator state ───────────────────────────────────────────────────────
+  const [mode, setMode] = useState<"Difficulty" | "Level">("Difficulty");
   const [tierIdx, setTierIdx] = useState<number>(0);
-  const [seed, setSeed] = useState<number>(42);
+  const [currentLevel, setCurrentLevel] = useState<number>(1);
+  const [seed, setSeed] = useState<number>(231198);
 
   // ── Puzzle state ──────────────────────────────────────────────────────────
   const [puzzle, setPuzzle] = useState<ShikakuPuzzle | null>(null);
-  const [userRects, setUserRects] = useState<Rect[]>([]);
+  const [userRects, setUserRects] = useState<userRect[]>([]);
 
   // ── Interaction state ─────────────────────────────────────────────────────
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [CELL, setCellSize] = useState<number>(50);
+  const [attempt, setAttempt] = useState<number>(1);
 
   // ── Solver state ──────────────────────────────────────────────────────────
   const [showSol, setShowSol] = useState<boolean>(false);
@@ -113,10 +90,8 @@ export default function ShikakuGame() {
   // ── Helpers ───────────────────────────────────────────────────────────────
   const displayRects: Rect[] =
     showSol && solverResult ? solverResult : userRects;
-
-  const placedLabels = new Set(displayRects.map((r) => r.label));
-
-  const tier = DIFF_TIERS[tierIdx];
+  const placedLabels = new Set(displayRects.map((r) => r.id));
+  const tier = SHIKAKU_TIERS[tierIdx];
 
   function resetGame(p: ShikakuPuzzle) {
     setPuzzle(p);
@@ -126,22 +101,142 @@ export default function ShikakuGame() {
     setSolverStatus(null);
     setIsComplete(false);
     setElapsed(0);
-    setStartTime(Date.now());
+    setAttempt(1);
+    setStartTime(null);
   }
 
+  // ── Display ───────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!puzzle) return;
+
+    const container = document.getElementById("game-container");
+    if (!container) return;
+
+    const update = () => {
+      const padding = 24;
+      const containerWidth = container.clientWidth - padding;
+      const containerHeight = container.clientHeight - padding;
+      const cellFromWidth = Math.floor(containerWidth / puzzle.width);
+      const cellFromHeight = Math.floor(containerHeight / puzzle.height);
+      const cellSize = Math.max(
+        20,
+        Math.min(cellFromWidth, cellFromHeight, 50),
+      );
+
+      setCellSize(cellSize);
+    };
+
+    update();
+
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+
+    window.addEventListener("resize", update);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [puzzle]);
+
+  const params: ShikakuParams | null = useMemo(() => {
+    if (mode === "Difficulty") {
+      return getShikakuParamsByTierIdx(tierIdx, seed);
+    }
+
+    if (mode === "Level") {
+      return getShikakuParamsByLevel(currentLevel, seed);
+    }
+
+    return null;
+  }, [mode, tierIdx, currentLevel, seed]);
+
+  const displayParams = useMemo((): ParamItem[] => {
+    if (!params) return [];
+    return [
+      {
+        label: "Width",
+        display: params.width,
+        pct: params.width / 25,
+        color: "#3b82f6",
+      },
+      {
+        label: "Height",
+        display: params.height,
+        pct: params.height / 25,
+        color: "#3b82f6",
+      },
+      {
+        label: "Rect Count",
+        display: params.rectCount,
+        pct: params.rectCount / 100,
+        color: "#22c55e",
+      },
+      {
+        label: "Min Area",
+        display: params.minArea,
+        pct: 1,
+        color: "#f59e0b",
+      },
+      {
+        label: "Compactness",
+        display: params.compactness.toFixed(2),
+        pct: params.compactness,
+        color: "#a855f7",
+      },
+      {
+        label: "Size Variance",
+        display: params.sizeVariance.toFixed(2),
+        pct: params.sizeVariance,
+        color: "#ef4444",
+      },
+      {
+        label: "Anchor Ambiguity",
+        display: params.anchorAmbiguity.toFixed(2),
+        pct: params.anchorAmbiguity,
+        color: "#ef4444",
+      },
+      {
+        label: "Seed",
+        display: params.seed,
+        pct: 1,
+        color: "#6b7280",
+      },
+    ];
+  }, [params]);
+
   // ── Generate ──────────────────────────────────────────────────────────────
-  function handleGenerate() {
+  function handleGenerate(seeded?: number) {
+    const actualSeed = seeded ?? seed;
     try {
-      resetGame(generateShikakuByTierIdx(tierIdx));
+      const puzzle =
+        mode === "Difficulty"
+          ? generateShikakuByTierIdx(tierIdx, actualSeed)
+          : generateShikakuByLevel(currentLevel, actualSeed);
+      resetGame(puzzle);
     } catch (e) {
       console.error("Generator error:", e);
+    }
+  }
+
+  function handleNext() {
+    if (mode === "Level") {
+      const nextLevel = currentLevel + 1;
+      setCurrentLevel(nextLevel);
+      setTierIdx(levelToTierIdx(nextLevel, SHIKAKU_TIERS.length));
+      handleGenerate();
+    }
+    if (mode === "Difficulty") {
+      const newSeed = Math.floor(Math.random() * 999999);
+      setSeed(newSeed);
+      handleGenerate(newSeed);
     }
   }
 
   // ── Drag ──────────────────────────────────────────────────────────────────
   function cellFromEvent(
     e: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent,
-  ): Point | null {
+  ): Cell | null {
     if (!gridRef.current || !puzzle) return null;
     const rect = gridRef.current.getBoundingClientRect();
 
@@ -161,6 +256,7 @@ export default function ShikakuGame() {
   function onDown(e: React.MouseEvent | React.TouchEvent) {
     if (!puzzle || isComplete || showSol) return;
     e.preventDefault();
+    if (!startTime) setStartTime(Date.now());
     const c = cellFromEvent(e);
     if (c) setDragState({ s: c, c });
   }
@@ -182,8 +278,9 @@ export default function ShikakuGame() {
     }
 
     e.preventDefault();
+
     const { s, c } = dragState;
-    const dr = {
+    const dr: Omit<Rect, "id"> = {
       x: Math.min(s.x, c.x),
       y: Math.min(s.y, c.y),
       w: Math.abs(c.x - s.x) + 1,
@@ -191,35 +288,17 @@ export default function ShikakuGame() {
     };
 
     setDragState(null);
-
-    // Find matching anchor
-    const area = dr.w * dr.h;
-    const match = puzzle.infos.find(
-      (i) =>
-        i.area === area &&
-        i.anchor.x >= dr.x &&
-        i.anchor.x < dr.x + dr.w &&
-        i.anchor.y >= dr.y &&
-        i.anchor.y < dr.y + dr.h,
-    );
-
-    if (!match) return;
+    setAttempt((prev) => prev + 1);
 
     setUserRects((prev) => {
-      const filtered = prev.filter((r) => {
-        if (r.label === match.label) return false;
-        return !(
-          r.x < dr.x + dr.w &&
-          r.x + r.w > dr.x &&
-          r.y < dr.y + dr.h &&
-          r.y + r.h > dr.y
-        );
-      });
+      const next = prev.filter((r) => !overlaps(r, dr));
+      const newRect: userRect = { id: `${attempt}`, ...dr };
+      newRect.validAnchor = checkShikakuAnchor(newRect, puzzle);
 
-      const next: Rect[] = [...filtered, { ...dr, label: match.label }];
+      const merged = dr.w * dr.h !== 1 ? [...next, newRect] : [...next];
+      setIsComplete(checkShikakuComplete(merged, puzzle));
 
-      checkCompletion(next, puzzle);
-      return next;
+      return merged;
     });
   }
 
@@ -227,52 +306,10 @@ export default function ShikakuGame() {
     setDragState(null);
   }
 
-  // ── Completion check ──────────────────────────────────────────────────────
-  function checkCompletion(rects: Rect[], p: ShikakuPuzzle) {
-    if (rects.length !== p.infos.length) return;
-
-    const used = new Uint8Array(p.width * p.height);
-
-    let cov = 0;
-
-    for (const r of rects) {
-      const info = p.infos.find((i) => i.label === r.label);
-
-      if (!info || r.w * r.h !== info.area) return;
-
-      const { x: ax, y: ay } = info.anchor;
-
-      if (ax < r.x || ax >= r.x + r.w || ay < r.y || ay >= r.y + r.h) {
-        return;
-      }
-
-      for (let y = r.y; y < r.y + r.h; y++) {
-        for (let x = r.x; x < r.x + r.w; x++) {
-          const k = y * p.width + x;
-
-          if (used[k]) return;
-
-          used[k] = 1;
-          cov++;
-        }
-      }
-    }
-
-    if (cov === p.width * p.height) {
-      setIsComplete(true);
-
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    }
-  }
-
   // ── Solver ────────────────────────────────────────────────────────────────
   function handleAutoSolve() {
     if (!puzzle) return;
-
     setSolverStatus("solving");
-
     setTimeout(() => {
       try {
         const result = solveShikaku(puzzle.width, puzzle.height, puzzle.infos);
@@ -294,17 +331,17 @@ export default function ShikakuGame() {
     setIsComplete(false);
   }
 
-  function handleRemove(label: string) {
-    setUserRects((r) => r.filter((x) => x.label !== label));
-  }
-
   // ── Solver panel actions ──────────────────────────────────────────────────
   const solverActions: ActionDef[] = [
     {
       label: "Auto-Solve",
       icon: "⚙",
       color: "#a78bfa",
-      disabled: !puzzle || solverStatus === "solving" || showSol,
+      disabled:
+        !puzzle ||
+        solverStatus === "solving" ||
+        showSol ||
+        (solverResult ? solverResult?.length > 1 : false),
       onClick: handleAutoSolve,
     },
     {
@@ -327,7 +364,7 @@ export default function ShikakuGame() {
       icon: "↺",
       color: T.green,
       disabled: !puzzle,
-      onClick: handleGenerate,
+      onClick: handleNext,
     },
   ];
 
@@ -363,35 +400,44 @@ export default function ShikakuGame() {
       placedCount={placedLabels.size}
       totalCount={puzzle ? puzzle.infos.length : 0}
       isSolved={isComplete}
+      // ===============================================================================
+      inforPanel={
+        <SolverStatusBar
+          status={solverStatus}
+          message={
+            solverStatus === "solving"
+              ? "Running backtracking solver…"
+              : solverStatus === "done"
+                ? `Solution found — ${solverResult?.length} rectangles`
+                : solverStatus === "error"
+                  ? "No solution found"
+                  : ""
+          }
+        />
+      }
+      // ===============================================================================
       leftPanel={
-        <DifficultyPicker
-          tiers={DIFF_TIERS}
+        <ToolSelectionPanel
+          tiers={SHIKAKU_TIERS}
           tierIdx={tierIdx}
-          onSelectTier={setTierIdx}
+          setTier={setTierIdx}
           seed={seed}
           onChangeSeed={setSeed}
           onGenerate={handleGenerate}
+          params={displayParams}
+          mode={mode}
+          setMode={setMode}
+          level={currentLevel}
+          setLevel={setCurrentLevel}
         />
       }
+      // ===============================================================================
       centerPanel={
         <>
           <SolveBanner
             show={isComplete}
             timeLabel={formatTime(elapsed)}
-            onNext={handleGenerate}
-          />
-
-          <SolverStatusBar
-            status={solverStatus}
-            message={
-              solverStatus === "solving"
-                ? "Running backtracking solver…"
-                : solverStatus === "done"
-                  ? `Solution found — ${solverResult?.length} rectangles`
-                  : solverStatus === "error"
-                    ? "No solution found"
-                    : ""
-            }
+            onNext={handleNext}
           />
 
           <ShikakuGrid
@@ -407,22 +453,20 @@ export default function ShikakuGame() {
           />
         </>
       }
+      // ===============================================================================
       rightPanel={
         <SolverPanel
-          panelLabel="Anchors"
+          panelLabel="Params & Stats"
           placedCount={placedLabels.size}
           totalCount={puzzle ? puzzle.infos.length : 0}
-          accentColor={isComplete ? T.green : tier.color}
-          isSolving={solverStatus === "solving"}
-          hasSolution={!!solverResult}
-          showSolution={showSol}
           stats={stats}
           actions={solverActions}
         >
-          <AnchorList
-            infos={puzzle?.infos ?? []}
-            placedLabels={placedLabels}
-            onRemove={handleRemove}
+          <ParamsPanel
+            seed={seed}
+            onChangeSeed={setSeed}
+            params={displayParams}
+            mode={mode}
           />
         </SolverPanel>
       }

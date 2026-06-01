@@ -2,62 +2,71 @@
  * games/shikaku/ShikakuGrid.tsx
  */
 
-import React from "react";
-import { labelColor, T } from "@/shared/components/ui/tokens";
-
-type Point = {
-  x: number;
-  y: number;
-};
-
-type DragState = {
-  s: Point;
-  c: Point;
-};
-
-type Rect = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  label: string;
-};
-
-type Anchor = {
-  anchor: Point;
-  area: number;
-};
-
-type Puzzle = {
-  width: number;
-  height: number;
-  infos: Anchor[];
-};
+import React, { useLayoutEffect, useMemo, useState } from "react";
+import { colorFromIndex, T } from "@/shared/components/ui/tokens";
+import LogoIcon from "./Logo";
+import { ShikakuPuzzle } from "../lib/generator";
+import { DragState, userRect } from "../lib/types";
 
 interface ShikakuGridProps {
-  puzzle?: Puzzle | null;
-  rects?: Rect[];
+  puzzle?: ShikakuPuzzle | null;
+  rects?: userRect[];
   dragState?: DragState | null;
   gridRef?: React.Ref<HTMLDivElement>;
-
   onDown?: React.MouseEventHandler<HTMLDivElement> &
     React.TouchEventHandler<HTMLDivElement>;
-
   onMove?: React.MouseEventHandler<HTMLDivElement> &
     React.TouchEventHandler<HTMLDivElement>;
-
   onUp?: React.MouseEventHandler<HTMLDivElement> &
     React.TouchEventHandler<HTMLDivElement>;
-
   onLeave?: React.MouseEventHandler<HTMLDivElement>;
-
   disabled?: boolean;
 }
 
-const CELL = 50;
+function hashString(input: string) {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash << 5) - hash + input.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
 
-export { CELL };
-
+/**
+ * Renders the interactive Shikaku puzzle grid.
+ *
+ * The grid automatically resizes its cells to fit within the
+ * `#game-container` element while maintaining square cells and a
+ * maximum size of 50px. It displays:
+ *
+ * - Puzzle anchor clues (`infos`)
+ * - User-created rectangles
+ * - Rectangle ownership and coloring
+ * - Rectangle validity state
+ * - Active drag-selection preview
+ *
+ * Mouse and touch interactions are delegated to the provided event
+ * handlers, allowing the parent component to manage rectangle creation
+ * and editing state.
+ *
+ * @param props - Component properties.
+ * @param props.puzzle - Current puzzle definition. If `null` or `undefined`,
+ * the component renders an empty placeholder grid.
+ * @param props.rects - Rectangles currently placed on the board.
+ * Defaults to an empty array.
+ * @param props.dragState - Active drag-selection state used to render a
+ * preview rectangle while the user is dragging.
+ * @param props.gridRef - Ref attached to the grid container element.
+ * @param props.onDown - Mouse/touch press handler.
+ * @param props.onMove - Mouse/touch move handler.
+ * @param props.onUp - Mouse/touch release handler.
+ * @param props.onLeave - Mouse/touch leave handler.
+ * @param props.disabled - When `true`, interaction handlers are disabled
+ * and the grid becomes read-only.
+ *
+ * @returns A responsive Shikaku grid with clue cells, rectangle overlays,
+ * and optional drag preview.
+ */
 export default function ShikakuGrid({
   puzzle,
   rects = [],
@@ -69,34 +78,113 @@ export default function ShikakuGrid({
   onLeave,
   disabled = false,
 }: ShikakuGridProps) {
-  if (!puzzle) return <EmptyGrid />;
+  const [cellSize, setCellSize] = useState(50);
 
-  const { width: W, height: H } = puzzle;
+  useLayoutEffect(() => {
+    if (!puzzle) return;
 
-  // Build cell → label lookup
-  const cellMap: Record<string, string> = {};
+    const container = document.getElementById("game-container");
+    if (!container) return;
 
-  for (const r of rects) {
-    for (let y = r.y; y < r.y + r.h; y++) {
-      for (let x = r.x; x < r.x + r.w; x++) {
-        cellMap[`${x},${y}`] = r.label;
+    const update = () => {
+      const padding = 24;
+      const containerWidth = container.clientWidth - padding;
+      const containerHeight = container.clientHeight - padding;
+
+      const cellFromWidth = Math.floor(containerWidth / puzzle.width);
+      const cellFromHeight = Math.floor(containerHeight / puzzle.height);
+
+      setCellSize(Math.max(20, Math.min(cellFromWidth, cellFromHeight, 50)));
+    };
+
+    update();
+
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    window.addEventListener("resize", update);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [puzzle]);
+
+  const { cellOwnerMap, anchorMap, rectColorMap } = useMemo(() => {
+    const cellOwnerMap = new Map<string, (typeof rects)[number]>();
+    const anchorMap = new Map<string, ShikakuPuzzle["infos"][number]>();
+    const rectColorMap = new Map<string, ReturnType<typeof colorFromIndex>>();
+
+    for (const r of rects) {
+      rectColorMap.set(r.id, colorFromIndex(hashString(r.id)));
+
+      for (let y = r.y; y < r.y + r.h; y++) {
+        for (let x = r.x; x < r.x + r.w; x++) {
+          cellOwnerMap.set(`${x},${y}`, r);
+        }
       }
     }
-  }
 
-  // Drag preview rect
-  const dp = dragState
-    ? {
-        x: Math.min(dragState.s.x, dragState.c.x),
-        y: Math.min(dragState.s.y, dragState.c.y),
-        w: Math.abs(dragState.c.x - dragState.s.x) + 1,
-        h: Math.abs(dragState.c.y - dragState.s.y) + 1,
+    if (puzzle) {
+      for (const info of puzzle.infos) {
+        anchorMap.set(`${info.anchor.x},${info.anchor.y}`, info);
       }
-    : null;
+    }
+
+    return { cellOwnerMap, anchorMap, rectColorMap };
+  }, [rects, puzzle]);
+
+  const cells = useMemo(() => {
+    if (!puzzle) return [];
+    const out: Array<{
+      key: string;
+      x: number;
+      y: number;
+      owner?: (typeof rects)[number];
+      anchor?: (typeof puzzle.infos)[number];
+      color?: ReturnType<typeof colorFromIndex>;
+      valid?: boolean;
+    }> = [];
+
+    for (let y = 0; y < puzzle.height; y++) {
+      for (let x = 0; x < puzzle.width; x++) {
+        const key = `${x},${y}`;
+        const owner = cellOwnerMap.get(key);
+        const anchor = anchorMap.get(key);
+
+        out.push({
+          key,
+          x,
+          y,
+          owner,
+          anchor,
+          color: owner ? rectColorMap.get(owner.id) : undefined,
+          valid: owner ? owner.validAnchor : undefined,
+        });
+      }
+    }
+
+    return out;
+  }, [puzzle, cellOwnerMap, anchorMap, rectColorMap]);
+
+  const dragPreview = useMemo(() => {
+    if (!dragState) return null;
+
+    const x1 = Math.min(dragState.s.x, dragState.c.x);
+    const y1 = Math.min(dragState.s.y, dragState.c.y);
+
+    return {
+      x: x1,
+      y: y1,
+      w: Math.abs(dragState.c.x - dragState.s.x) + 1,
+      h: Math.abs(dragState.c.y - dragState.s.y) + 1,
+    };
+  }, [dragState]);
+
+  if (!puzzle) return <EmptyGrid />;
+  const { width: W, height: H } = puzzle;
 
   return (
-    <div style={{ position: "relative", display: "inline-block" }}>
-      {/* Grid */}
+    <div className="relative inline-block">
       <div
         ref={gridRef}
         onMouseDown={disabled ? undefined : onDown}
@@ -106,133 +194,80 @@ export default function ShikakuGrid({
         onTouchStart={disabled ? undefined : onDown}
         onTouchMove={disabled ? undefined : onMove}
         onTouchEnd={disabled ? undefined : onUp}
+        className="grid relative overflow-hidden select-none touch-none"
         style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${W}, ${CELL}px)`,
-          gridTemplateRows: `repeat(${H}, ${CELL}px)`,
-          width: W * CELL,
-          height: H * CELL,
-          position: "relative",
+          gridTemplateColumns: `repeat(${W}, ${cellSize}px)`,
+          gridTemplateRows: `repeat(${H}, ${cellSize}px)`,
+          width: W * cellSize + 3,
+          height: H * cellSize + 3,
           border: `1.5px solid ${T.border2}`,
-          borderRadius: T.radius2,
-          overflow: "hidden",
           cursor: disabled ? "default" : "crosshair",
           background: T.bg2,
-          userSelect: "none",
-          touchAction: "none",
-          boxShadow: "0 8px 40px rgba(0,0,0,.5)",
         }}
       >
-        {/* Cells */}
-        {Array.from({ length: H }, (_, y) =>
-          Array.from({ length: W }, (_, x) => {
-            const key = `${x},${y}`;
-            const label = cellMap[key];
-            const col = label ? labelColor(label) : null;
+        {cells.map(({ key, x, y, owner, anchor, color, valid }) => {
+          const bT = !owner || y === owner.y;
+          const bB = !owner || y === owner.y + owner.h - 1;
+          const bL = !owner || x === owner.x;
+          const bR = !owner || x === owner.x + owner.w - 1;
 
-            // Which placed rect covers this cell?
-            const r = rects.find(
-              (r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h,
-            );
+          const defaultBorder = "rgba(255,255,255,.07)";
+          const activeBorder = color ? `hsl(${color.bg} 0.88)` : defaultBorder;
 
-            const bT = !r || y === r.y;
-            const bB = !r || y === r.y + r.h - 1;
-            const bL = !r || x === r.x;
-            const bR = !r || x === r.x + r.w - 1;
+          const inactiveBorder = `${valid ? 0 : 1}px solid ${defaultBorder}`;
+          return (
+            <div
+              key={key}
+              className="relative flex items-center justify-center box-border"
+              style={{
+                width: cellSize,
+                height: cellSize,
+                background: color
+                  ? `hsl(${color.bg} / ${valid ? 1 : 0.2})`
+                  : undefined,
+                borderTop: bT ? `2px solid ${activeBorder}` : inactiveBorder,
+                borderBottom: bB ? `2px solid ${activeBorder}` : inactiveBorder,
+                borderLeft: bL ? `2px solid ${activeBorder}` : inactiveBorder,
+                borderRight: bR ? `2px solid ${activeBorder}` : inactiveBorder,
+              }}
+            >
+              {anchor && (
+                <AnchorPip
+                  value={anchor.area}
+                  color={color}
+                  cellSize={cellSize}
+                />
+              )}
+            </div>
+          );
+        })}
 
-            const anchor = puzzle.infos.find(
-              (i) => i.anchor.x === x && i.anchor.y === y,
-            );
-
-            return (
-              <div
-                key={key}
-                style={{
-                  width: CELL,
-                  height: CELL,
-                  position: "relative",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: col ? `${col}20` : "rgba(255,255,255,.015)",
-                  borderTop: `${bT ? 2 : 1}px solid ${
-                    bT && col ? `${col}88` : "rgba(255,255,255,.07)"
-                  }`,
-                  borderBottom: `${bB ? 2 : 1}px solid ${
-                    bB && col ? `${col}88` : "rgba(255,255,255,.07)"
-                  }`,
-                  borderLeft: `${bL ? 2 : 1}px solid ${
-                    bL && col ? `${col}88` : "rgba(255,255,255,.07)"
-                  }`,
-                  borderRight: `${bR ? 2 : 1}px solid ${
-                    bR && col ? `${col}88` : "rgba(255,255,255,.07)"
-                  }`,
-                  boxSizing: "border-box",
-                }}
-              >
-                {anchor && (
-                  <AnchorPip value={anchor.area} color={col ?? undefined} />
-                )}
-              </div>
-            );
-          }),
-        )}
-
-        {/* Drag preview overlay */}
-        {dp && (
+        {dragPreview && (
           <div
+            className="absolute rounded-sm pointer-events-none z-20 flex justify-center items-center"
             style={{
-              position: "absolute",
-              left: dp.x * CELL,
-              top: dp.y * CELL,
-              width: dp.w * CELL,
-              height: dp.h * CELL,
+              left: dragPreview.x * cellSize,
+              top: dragPreview.y * cellSize,
+              width: dragPreview.w * cellSize,
+              height: dragPreview.h * cellSize,
               border: `2px solid ${T.accent2}`,
               background: `${T.accent}18`,
-              borderRadius: 3,
-              pointerEvents: "none",
-              zIndex: 20,
-            }}
-          />
-        )}
-
-        {/* Rect corner labels */}
-        {rects.map((r) => (
-          <div
-            key={`${r.label}_lbl`}
-            style={{
-              position: "absolute",
-              left: r.x * CELL + 4,
-              top: r.y * CELL + 4,
-              fontSize: 9,
-              fontWeight: 800,
-              color: labelColor(r.label),
-              fontFamily: T.font,
-              pointerEvents: "none",
-              zIndex: 5,
-              opacity: 0.7,
             }}
           >
-            {r.label}
+            <div
+              className="z-10 flex items-center justify-center rounded-full px-1 text-slate-100"
+              style={{
+                fontSize: cellSize < 40 ? 10 : cellSize < 30 ? 8 : 13,
+                background: `${T.accent}`,
+                fontFamily: T.font,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {dragPreview.w * dragPreview.h}
+            </div>
           </div>
-        ))}
+        )}
       </div>
-
-      {/* Drag dimension hint */}
-      {dp && (
-        <div
-          style={{
-            textAlign: "center",
-            marginTop: 8,
-            fontSize: 11,
-            fontWeight: 700,
-            color: T.accent2,
-            fontFamily: T.font,
-          }}
-        >
-          {dp.w}×{dp.h} = {dp.w * dp.h}
-        </div>
-      )}
     </div>
   );
 }
@@ -240,30 +275,29 @@ export default function ShikakuGrid({
 // ─────────────────────────────────────────────────────────────────────────────
 // AnchorPip
 // ─────────────────────────────────────────────────────────────────────────────
-
-interface AnchorPipProps {
+function AnchorPip({
+  value,
+  cellSize,
+  color,
+}: {
   value: number;
-  color?: string;
-}
-
-function AnchorPip({ value, color }: AnchorPipProps) {
+  cellSize: number;
+  color?: {
+    bg: string;
+    text: string;
+  };
+}) {
   return (
     <div
+      className="rounded-full flex justify-center items-center font-bold pointer-events-none z-10"
       style={{
-        width: CELL * 0.64,
-        height: CELL * 0.64,
-        borderRadius: "50%",
-        background: color ? `${color}cc` : "rgba(255,255,255,.16)",
-        border: `2px solid ${color || "rgba(255,255,255,.35)"}`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: CELL < 40 ? 10 : 13,
-        fontWeight: 800,
-        color: "#fff",
+        width: cellSize * 0.64,
+        height: cellSize * 0.64,
+        color: color ? `hsl(${color.text})` : "#f1f5f9",
+        background: color ? `hsl(${color.bg})` : "rgba(255,255,255,.16)",
+        border: `2px solid ${color ? `hsl(${color.bg} / 0.9)` : "rgba(255,255,255,.35)"}`,
+        fontSize: cellSize < 40 ? 10 : cellSize < 30 ? 7 : 13,
         fontVariantNumeric: "tabular-nums",
-        pointerEvents: "none",
-        zIndex: 2,
       }}
     >
       {value}
@@ -274,60 +308,12 @@ function AnchorPip({ value, color }: AnchorPipProps) {
 // ─────────────────────────────────────────────────────────────────────────────
 // EmptyGrid
 // ─────────────────────────────────────────────────────────────────────────────
-
-const PALETTE = [
-  "#ef4444",
-  "#f59e0b",
-  "#10b981",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
-];
-
 function EmptyGrid() {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        flex: 1,
-        gap: 14,
-        color: T.text3,
-        minHeight: 300,
-      }}
-    >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 18px)",
-          gridTemplateRows: "repeat(4, 18px)",
-          gap: 2,
-          opacity: 0.2,
-        }}
-      >
-        {Array.from({ length: 16 }, (_, i) => (
-          <div
-            key={i}
-            style={{
-              borderRadius: 2,
-              background: PALETTE[i % PALETTE.length],
-              width: 18,
-              height: 18,
-            }}
-          />
-        ))}
-      </div>
+    <div className="flex flex-col items-center justify-center gap-3 w-full h-full">
+      <LogoIcon size="2xl" />
 
-      <p
-        style={{
-          fontSize: 12,
-          letterSpacing: 1,
-          opacity: 0.5,
-          textAlign: "center",
-        }}
-      >
+      <p className="text-xs tracking-widest opacity-50 text-center">
         Select a difficulty and generate a puzzle
       </p>
     </div>

@@ -290,48 +290,45 @@ export function ParamRow({
 }: ParamRowProps) {
   return (
     <div
+      className="flex flex-col w-full justify-between items-center py-1.5 border-b"
       style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "7px 0",
-        borderBottom: `1px solid ${T.border}`,
+        borderBottomColor: `${T.border}`,
       }}
     >
-      <div>
+      <div className="flex justify-between w-full">
         <div style={{ fontSize: 10, color: T.text2, letterSpacing: 1 }}>
           {label}
         </div>
         <div
           style={{
-            width: 64,
-            height: 4,
-            background: T.bg4,
-            borderRadius: 2,
-            overflow: "hidden",
-            marginTop: 3,
+            fontSize: 11,
+            fontWeight: 700,
+            color: T.text,
+            fontVariantNumeric: "tabular-nums",
           }}
         >
-          <div
-            style={{
-              width: `${Math.round(Math.max(0, Math.min(1, pct)) * 100)}%`,
-              height: "100%",
-              background: color,
-              borderRadius: 2,
-              transition: "width .3s",
-            }}
-          />
+          {display}
         </div>
       </div>
       <div
+        className="w-full"
         style={{
-          fontSize: 11,
-          fontWeight: 700,
-          color: T.text,
-          fontVariantNumeric: "tabular-nums",
+          height: 4,
+          background: T.bg4,
+          borderRadius: 2,
+          overflow: "hidden",
+          marginTop: 3,
         }}
       >
-        {display}
+        <div
+          style={{
+            width: `${Math.round(Math.max(0, Math.min(1, pct)) * 100)}%`,
+            height: "100%",
+            background: color,
+            borderRadius: 2,
+            transition: "width .3s",
+          }}
+        />
       </div>
     </div>
   );
@@ -411,48 +408,33 @@ export function SolveBanner({
 }) {
   if (!show) return null;
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        width: "100%",
-        maxWidth: 560,
-        boxSizing: "border-box",
-        background: `${T.green}12`,
-        border: `1px solid ${T.green}44`,
-        borderRadius: T.radius2,
-        padding: "12px 18px",
-        color: T.green,
-      }}
-    >
-      <span style={{ fontSize: 22 }}>🎉</span>
-      <span style={{ fontWeight: 800, fontSize: 14, letterSpacing: 2 }}>
-        SOLVED!
-      </span>
-      {timeLabel && (
-        <span style={{ fontSize: 13, opacity: 0.7 }}>{timeLabel}</span>
-      )}
-      {onNext && (
-        <button
-          onClick={onNext}
-          style={{
-            marginLeft: "auto",
-            padding: "6px 14px",
-            borderRadius: 6,
-            border: `1px solid ${T.green}`,
-            background: "transparent",
-            color: T.green,
-            fontFamily: T.font,
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: 2,
-            cursor: "pointer",
-          }}
-        >
-          Next →
-        </button>
-      )}
+    <div className="absolute z-90 w-full h-full flex items-center justify-center bg-black/70">
+      <div
+        className="flex items-center gap-2 max-w-140 box-border px-4.5 py-3 flex-col shadow-xl"
+        style={{
+          background: `${T.green}ae`,
+          border: `1px solid ${T.green}44`,
+          borderRadius: T.radius2,
+        }}
+      >
+        <span style={{ fontSize: 22 }}>🥳🎉</span>
+        <span style={{ fontSize: 16 }}>Congratulation...!!!</span>
+        <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: 2 }}>
+          SOLVED!
+        </span>
+        {timeLabel && (
+          <span style={{ fontSize: 24, opacity: 0.7 }}>{timeLabel}</span>
+        )}
+        {onNext && (
+          <button
+            onClick={onNext}
+            className="mt-10 ml-auto px-3.5 py-1.5 rounded-sm bg-transparent text-xs font-bold tracking-widest cursor-pointer border "
+            style={{ fontFamily: T.font }}
+          >
+            Next →
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -495,55 +477,40 @@ export function SeedRow({
   value,
   onChange,
   onRandom,
+  disabled,
 }: {
   value: number;
   onChange: (value: number) => void;
   onRandom: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: 6,
-        alignItems: "center",
-        marginBottom: 14,
-      }}
-    >
+    <div className="flex gap-1.5 items-center mb-3.5">
       <input
         type="number"
         value={value}
         min={0}
         max={999999}
+        className="flex-1 border rounded-sm py-1.5 px-2 text-xs outline-none min-w-0 disabled:cursor-not-allowed disabled:opacity-50"
         onChange={(e) => onChange(Number(e.target.value) || 0)}
         style={{
-          flex: 1,
           background: T.bg3,
-          border: `1px solid ${T.border2}`,
-          borderRadius: 6,
+          borderColor: ` ${T.border2}`,
           color: T.text,
-          padding: "6px 8px",
-          fontSize: 12,
           fontFamily: T.font,
-          outline: "none",
-          minWidth: 0,
         }}
+        disabled={disabled}
       />
       <button
         onClick={onRandom}
         title="Random seed"
+        disabled={disabled}
+        className="w-8 h-8 rounded-sm border cursor-pointer flex items-center justify-center text-sm shrink-0 disabled:cursor-not-allowed disabled:opacity-50"
         style={{
-          width: 30,
-          height: 30,
-          borderRadius: 6,
-          border: `1px solid ${T.border2}`,
+          border: `${T.border2}`,
           background: T.bg3,
           color: T.text2,
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 15,
-          flexShrink: 0,
+
           fontFamily: T.font,
         }}
       >

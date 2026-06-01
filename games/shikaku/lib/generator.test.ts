@@ -29,6 +29,7 @@ function makeParams(partial: Partial<PuzzleParams> = {}): PuzzleParams {
     sizeVariance: 0.5,
     anchorAmbiguity: 0.5,
     label: "Test",
+    seed: 123,
     ...partial,
   };
 }
@@ -150,12 +151,12 @@ describe("generateShikaku()", () => {
   it("returns valid puzzle info", () => {
     const params = makeParams();
 
-    const result = generateShikaku(params, mkRng(123));
+    const result = generateShikaku(params, 123);
 
     expect(result.rectCount).toBe(params.rectCount);
     expect(result.infos.length).toBe(params.rectCount);
 
-    const labels = new Set(result.infos.map((r) => r.label));
+    const labels = new Set(result.infos.map((r) => r.id));
 
     expect(labels.size).toBe(params.rectCount);
 
@@ -173,8 +174,8 @@ describe("generateShikaku()", () => {
   it("is deterministic", () => {
     const params = makeParams();
 
-    const a = generateShikaku(params, mkRng(123));
-    const b = generateShikaku(params, mkRng(123));
+    const a = generateShikaku(params, 123);
+    const b = generateShikaku(params, 123);
 
     expect(a).toEqual(b);
   });
@@ -182,8 +183,8 @@ describe("generateShikaku()", () => {
   it("changes with different seeds", () => {
     const params = makeParams();
 
-    const a = generateShikaku(params, mkRng(1));
-    const b = generateShikaku(params, mkRng(2));
+    const a = generateShikaku(params, 1);
+    const b = generateShikaku(params, 2);
 
     expect(a).not.toEqual(b);
   });
@@ -193,7 +194,7 @@ describe("generateShikaku()", () => {
       anchorAmbiguity: 0,
     });
 
-    const result = generateShikaku(params, mkRng(123));
+    const result = generateShikaku(params, 123);
 
     let centerish = 0;
 
@@ -217,7 +218,7 @@ describe("generateShikaku()", () => {
       anchorAmbiguity: 1,
     });
 
-    const result = generateShikaku(params, mkRng(123));
+    const result = generateShikaku(params, 123);
 
     const edgeAnchors = result.infos.filter((r) => {
       return (
@@ -238,7 +239,7 @@ describe("generateShikaku()", () => {
       rectCount: 25,
     });
 
-    const res = generateShikaku(params, mkRng(Date.now()));
+    const res = generateShikaku(params, Date.now());
     const grid = Array.from({ length: params.height }, () =>
       Array(params.width).fill("."),
     );
@@ -379,10 +380,9 @@ describe("generateShikakuByTierIdx()", () => {
 
   it("lowest tier survives 100 seeds", () => {
     for (let seed = 1; seed <= 100; seed++) {
-      const rng = mkRng(seed);
-      const params = getShikakuParamsByTierIdx(0, rng);
+      const params = getShikakuParamsByTierIdx(0, seed);
 
-      expect(() => generateShikaku(params, rng)).not.toThrow();
+      expect(() => generateShikaku(params, seed)).not.toThrow();
     }
   });
 
@@ -390,10 +390,9 @@ describe("generateShikakuByTierIdx()", () => {
     const tierIdx = SHIKAKU_TIERS.length - 1;
 
     for (let seed = 1; seed <= 100; seed++) {
-      const rng = mkRng(seed);
-      const params = getShikakuParamsByTierIdx(tierIdx, rng);
+      const params = getShikakuParamsByTierIdx(tierIdx, seed);
 
-      expect(() => generateShikaku(params, rng)).not.toThrow();
+      expect(() => generateShikaku(params, seed)).not.toThrow();
     }
   });
 });

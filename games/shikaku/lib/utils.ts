@@ -2,10 +2,7 @@
  * Shikaku utility functions
  */
 
-import type { Cell, Rect, RectInfo } from "./types";
-
-export const LABELS =
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz@#$%&*+=";
+import type { Cell, Rect } from "./types";
 
 /**
  * Calculate area of a rectangle
@@ -22,13 +19,6 @@ export function isValidRect(
   minArea: number,
 ): boolean {
   return r.w > 0 && r.h > 0 && area(r) >= minArea;
-}
-
-/**
- * Generate label for rectangle at index
- */
-export function getLabel(i: number): string {
-  return LABELS[i] ?? `R${i}`;
 }
 
 /**
@@ -112,32 +102,8 @@ export function pickAnchor(
   }
 }
 
-/**
- * Calculate grid key from coordinates
- */
-export function gridKey(x: number, y: number, width: number): number {
-  return y * width + x;
-}
-
-/**
- * Check if rectangle cells overlap with used cells
- */
-export function overlaps(cells: Uint16Array, used: Uint8Array): boolean {
-  for (let i = 0; i < cells.length; i++) {
-    if (used[cells[i]]) return true;
-  }
-  return false;
-}
-
-/**
- * Mark rectangle cells as used or unused
- */
-export function paintCells(
-  cells: Uint16Array,
-  used: Uint8Array,
-  value: 0 | 1,
-): void {
-  for (let i = 0; i < cells.length; i++) {
-    used[cells[i]] = value;
-  }
+export function overlaps(a: Omit<Rect, "id">, b: Omit<Rect, "id">) {
+  return (
+    a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+  );
 }

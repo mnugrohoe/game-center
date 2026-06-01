@@ -42,6 +42,7 @@ export interface GameShellProps {
   placedCount: number;
   totalCount: number;
   isSolved: boolean;
+  inforPanel?: React.ReactNode;
   leftPanel: React.ReactNode;
   centerPanel: React.ReactNode;
   rightPanel: React.ReactNode;
@@ -58,6 +59,7 @@ export default function GameShell({
   placedCount = 0,
   totalCount = 0,
   isSolved = false,
+  inforPanel,
   leftPanel,
   centerPanel,
   rightPanel,
@@ -67,13 +69,14 @@ export default function GameShell({
   return (
     <div
       style={{
-        minHeight: "100vh",
+        height: "100vh",
         background: T.bg,
         color: T.text,
         fontFamily: T.font,
         display: "grid",
         gridTemplateColumns: "220px 1fr 260px",
         gridTemplateRows: "52px 1fr",
+        overflow: "hidden",
       }}
     >
       {/* ── TOP BAR ──────────────────────────────────────────────────────── */}
@@ -180,6 +183,9 @@ export default function GameShell({
           >
             {formatTime(elapsed)}
           </span>
+          <Sep />
+          {/* Information panel */}
+          <div className="flex-1 justify-end">{inforPanel}</div>
         </div>
 
         {/* Progress — same width as right panel */}
@@ -218,14 +224,10 @@ export default function GameShell({
 
       {/* ── CENTER ───────────────────────────────────────────────────────── */}
       <div
+        id="game-container"
+        className="grid place-items-center relative"
         style={{
           background: T.bg,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "flex-start",
-          padding: "24px 16px",
-          gap: 16,
           overflowY: "auto",
         }}
       >

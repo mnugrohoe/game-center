@@ -7,7 +7,6 @@ import {
   Divider,
   StatsGrid,
   ActionBtn,
-  ProgressRing,
 } from "./primitive";
 import { ColorType } from "@/shared/types";
 
@@ -29,11 +28,8 @@ interface SolverPanelProps {
   panelLabel?: string;
   placedCount?: number;
   totalCount?: number;
-  accentColor?: ColorType;
 
   isSolving?: boolean;
-  hasSolution?: boolean;
-  showSolution?: boolean;
 
   stats?: StatItem[];
   actions?: ActionDef[];
@@ -45,16 +41,11 @@ export default function SolverPanel({
   panelLabel = "Items",
   placedCount = 0,
   totalCount = 0,
-  accentColor = T.accent,
   isSolving = false,
-  hasSolution = false,
-  showSolution = false,
   stats = [],
   actions = [],
   children,
 }: SolverPanelProps) {
-  const pct = totalCount > 0 ? placedCount / totalCount : 0;
-
   return (
     <>
       {/* Header */}
@@ -109,52 +100,10 @@ export default function SolverPanel({
       {stats.length > 0 && <StatsGrid stats={stats} />}
 
       <Divider />
-
-      {/* Progress row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: "6px 12px 12px",
-        }}
-      >
-        <ProgressRing pct={pct} color={accentColor} />
-
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: T.text2,
-          }}
-        >
-          {placedCount}/{totalCount}
-        </span>
-
-        {isSolving && (
-          <span
-            style={{
-              fontSize: 10,
-              color: "#a78bfa",
-              marginLeft: "auto",
-            }}
-          >
-            Solving…
-          </span>
-        )}
-
-        {hasSolution && !isSolving && !showSolution && (
-          <span
-            style={{
-              fontSize: 10,
-              color: T.green,
-              marginLeft: "auto",
-            }}
-          >
-            Ready
-          </span>
-        )}
-      </div>
     </>
   );
+}
+
+export function SolverPanelGenerator() {
+  return <Divider />;
 }

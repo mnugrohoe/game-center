@@ -1,255 +1,174 @@
 import { describe, expect, it } from "vitest";
 
-import { validateBoard } from "./validation";
-import { Rect, RectInfo } from "./types";
+import { RectInfo, userRect } from "./types";
+import { ShikakuPuzzle } from "./generator";
+import { checkShikakuAnchor, checkShikakuComplete } from "./validation";
 
-describe("validateBoard", () => {
-  it("validates single rectangle board", () => {
-    const rects: Rect[] = [
+describe("checkAnchor", () => {
+  const infos: RectInfo[] = [
+    {
+      id: "A",
+      area: 4,
+      anchor: { x: 0, y: 0 },
+    },
+    {
+      id: "B",
+      area: 2,
+      anchor: { x: 2, y: 0 },
+    },
+  ];
+
+  const puzzle = {
+    width: 3,
+    height: 2,
+    infos,
+  } as ShikakuPuzzle;
+
+  it("returns true when rectangle contains exactly one matching anchor", () => {
+    expect(
+      checkShikakuAnchor(
+        {
+          id: "A",
+          x: 0,
+          y: 0,
+          w: 2,
+          h: 2,
+        },
+        puzzle,
+      ),
+    ).toBe(true);
+  });
+
+  it("returns false when rectangle contains multiple anchors", () => {
+    expect(
+      checkShikakuAnchor(
+        {
+          id: "A",
+          x: 0,
+          y: 0,
+          w: 3,
+          h: 2,
+        },
+        puzzle,
+      ),
+    ).toBe(false);
+  });
+
+  it("returns false when area does not match anchor clue", () => {
+    expect(
+      checkShikakuAnchor(
+        {
+          id: "A",
+          x: 0,
+          y: 0,
+          w: 1,
+          h: 2,
+        },
+        puzzle,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("checkComplete", () => {
+  const puzzle = {
+    width: 2,
+    height: 2,
+    infos: [
       {
-        label: "A",
-        x: 0,
-        y: 0,
-        w: 2,
-        h: 2,
+        id: "A",
+        area: 2,
+        anchor: { x: 0, y: 0 },
       },
-    ];
-
-    const infos: RectInfo[] = [
       {
-        label: "A",
-        area: 4,
+        id: "B",
+        area: 2,
         anchor: { x: 1, y: 1 },
       },
-    ];
+    ],
+  } as ShikakuPuzzle;
 
-    expect(validateBoard(2, 2, rects, infos)).toBe(true);
-  });
-
-  it("validates multiple rectangles", () => {
-    const rects: Rect[] = [
+  it("returns true for a complete valid solution", () => {
+    const rects: userRect[] = [
       {
-        label: "A",
+        id: "A",
         x: 0,
         y: 0,
         w: 2,
-        h: 2,
+        h: 1,
+        validAnchor: true,
       },
       {
-        label: "B",
-        x: 2,
-        y: 0,
-        w: 1,
-        h: 2,
-      },
-    ];
-
-    const infos: RectInfo[] = [
-      {
-        label: "A",
-        area: 4,
-        anchor: { x: 1, y: 0 },
-      },
-      {
-        label: "B",
-        area: 2,
-        anchor: { x: 2, y: 1 },
-      },
-    ];
-
-    expect(validateBoard(3, 2, rects, infos)).toBe(true);
-  });
-
-  it("fails on overlap", () => {
-    const rects: Rect[] = [
-      {
-        label: "A",
+        id: "B",
         x: 0,
-        y: 0,
-        w: 2,
-        h: 2,
-      },
-      {
-        label: "B",
-        x: 1,
         y: 1,
         w: 2,
         h: 1,
+        validAnchor: true,
       },
     ];
 
-    const infos: RectInfo[] = [
-      {
-        label: "A",
-        area: 4,
-        anchor: { x: 0, y: 0 },
-      },
-      {
-        label: "B",
-        area: 2,
-        anchor: { x: 2, y: 1 },
-      },
-    ];
-
-    expect(validateBoard(3, 2, rects, infos)).toBe(false);
+    expect(checkShikakuComplete(rects, puzzle)).toBe(true);
   });
 
-  it("fails on incomplete coverage", () => {
-    const rects: Rect[] = [
+  it("returns false when rectangle count does not match clues", () => {
+    const rects: userRect[] = [
       {
-        label: "A",
-        x: 0,
-        y: 0,
-        w: 1,
-        h: 1,
-      },
-    ];
-
-    const infos: RectInfo[] = [
-      {
-        label: "A",
-        area: 1,
-        anchor: { x: 0, y: 0 },
-      },
-    ];
-
-    expect(validateBoard(2, 2, rects, infos)).toBe(false);
-  });
-
-  it("fails when area mismatches", () => {
-    const rects: Rect[] = [
-      {
-        label: "A",
+        id: "A",
         x: 0,
         y: 0,
         w: 2,
-        h: 2,
+        h: 1,
+        validAnchor: true,
       },
     ];
 
-    const infos: RectInfo[] = [
-      {
-        label: "A",
-        area: 3,
-        anchor: { x: 0, y: 0 },
-      },
-    ];
-
-    expect(validateBoard(2, 2, rects, infos)).toBe(false);
+    expect(checkShikakuComplete(rects, puzzle)).toBe(false);
   });
 
-  it("fails when anchor is outside rectangle", () => {
-    const rects: Rect[] = [
+  it("returns false when any rectangle has invalid anchor", () => {
+    const rects: userRect[] = [
       {
-        label: "A",
+        id: "A",
         x: 0,
         y: 0,
-        w: 1,
+        w: 2,
         h: 1,
+        validAnchor: true,
       },
-    ];
-
-    const infos: RectInfo[] = [
       {
-        label: "A",
-        area: 1,
-        anchor: { x: 1, y: 1 },
-      },
-    ];
-
-    expect(validateBoard(2, 2, rects, infos)).toBe(false);
-  });
-
-  it("fails on unknown label", () => {
-    const rects: Rect[] = [
-      {
-        label: "X",
+        id: "B",
         x: 0,
-        y: 0,
-        w: 1,
-        h: 1,
-      },
-    ];
-
-    const infos: RectInfo[] = [
-      {
-        label: "A",
-        area: 1,
-        anchor: { x: 0, y: 0 },
-      },
-    ];
-
-    expect(validateBoard(1, 1, rects, infos)).toBe(false);
-  });
-
-  it("fails on duplicate info labels", () => {
-    const rects: Rect[] = [
-      {
-        label: "A",
-        x: 0,
-        y: 0,
-        w: 1,
-        h: 1,
-      },
-    ];
-
-    const infos: RectInfo[] = [
-      {
-        label: "A",
-        area: 1,
-        anchor: { x: 0, y: 0 },
-      },
-      {
-        label: "A",
-        area: 1,
-        anchor: { x: 0, y: 0 },
-      },
-    ];
-
-    expect(validateBoard(1, 1, rects, infos)).toBe(false);
-  });
-
-  it("fails on out-of-bounds rectangle", () => {
-    const rects: Rect[] = [
-      {
-        label: "A",
-        x: 1,
         y: 1,
         w: 2,
-        h: 2,
+        h: 1,
+        validAnchor: false,
       },
     ];
 
-    const infos: RectInfo[] = [
-      {
-        label: "A",
-        area: 4,
-        anchor: { x: 1, y: 1 },
-      },
-    ];
-
-    expect(validateBoard(2, 2, rects, infos)).toBe(false);
+    expect(checkShikakuComplete(rects, puzzle)).toBe(false);
   });
 
-  it("fails on zero-sized rectangle", () => {
-    const rects: Rect[] = [
+  it("returns false when board is not fully covered", () => {
+    const rects: userRect[] = [
       {
-        label: "A",
+        id: "A",
         x: 0,
         y: 0,
-        w: 0,
+        w: 1,
         h: 1,
+        validAnchor: true,
       },
-    ];
-
-    const infos: RectInfo[] = [
       {
-        label: "A",
-        area: 0,
-        anchor: { x: 0, y: 0 },
+        id: "B",
+        x: 1,
+        y: 1,
+        w: 1,
+        h: 1,
+        validAnchor: true,
       },
     ];
 
-    expect(validateBoard(1, 1, rects, infos)).toBe(false);
+    expect(checkShikakuComplete(rects, puzzle)).toBe(false);
   });
 });

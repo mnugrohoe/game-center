@@ -20,7 +20,7 @@ import {
   lerp,
   clamp,
 } from "@/shared/algorithms/difficulty";
-import { mkRng } from "@/shared/algorithms";
+import { mkRng, seedFromLevel } from "@/shared/algorithms";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Re-export shared helpers
@@ -50,10 +50,10 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
     icon: "□",
     diffScore: 1,
     minBoard: 5,
-    maxBoard: 6, // diff 2
-    color: "#4a9e6a",
-    dim: "#2a5e3a",
-    bright: "#7ed4a0",
+    maxBoard: 6,
+    color: "#4FC3F7", // Sky Blue
+    dim: "#29B6F6",
+    bright: "#B3E5FC",
   },
 
   {
@@ -61,10 +61,10 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
     icon: "▣",
     diffScore: 2,
     minBoard: 7,
-    maxBoard: 10, // diff 3
-    color: "#5a9e7a",
-    dim: "#3a6e4a",
-    bright: "#8adaaa",
+    maxBoard: 10,
+    color: "#66BB6A", // Green
+    dim: "#4CAF50",
+    bright: "#C8E6C9",
   },
 
   {
@@ -72,10 +72,10 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
     icon: "▤",
     diffScore: 3,
     minBoard: 8,
-    maxBoard: 12, // diff 4
-    color: "#4a7abe",
-    dim: "#2a4a7e",
-    bright: "#8ab4ee",
+    maxBoard: 12,
+    color: "#26C6DA", // Cyan
+    dim: "#00BCD4",
+    bright: "#B2EBF2",
   },
 
   {
@@ -83,10 +83,10 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
     icon: "▥",
     diffScore: 4,
     minBoard: 9,
-    maxBoard: 14, // diff 5
-    color: "#7a9a2a",
-    dim: "#4a6a10",
-    bright: "#b4d45a",
+    maxBoard: 14,
+    color: "#D4E157", // Lime
+    dim: "#C0CA33",
+    bright: "#F0F4C3",
   },
 
   {
@@ -94,10 +94,10 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
     icon: "▦",
     diffScore: 5,
     minBoard: 10,
-    maxBoard: 16, // diff 6
-    color: "#a07a2a",
-    dim: "#6a4a10",
-    bright: "#d4aa5a",
+    maxBoard: 16,
+    color: "#FFCA28", // Amber
+    dim: "#FFB300",
+    bright: "#FFECB3",
   },
 
   {
@@ -105,10 +105,10 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
     icon: "▧",
     diffScore: 6,
     minBoard: 12,
-    maxBoard: 18, // diff 6
-    color: "#9e4a9e",
-    dim: "#5e2a6e",
-    bright: "#cc80cc",
+    maxBoard: 18,
+    color: "#BA68C8", // Purple
+    dim: "#AB47BC",
+    bright: "#E1BEE7",
   },
 
   {
@@ -116,10 +116,10 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
     icon: "▨",
     diffScore: 7,
     minBoard: 14,
-    maxBoard: 20, // diff 6
-    color: "#be4a4a",
-    dim: "#7e1a1a",
-    bright: "#ee8888",
+    maxBoard: 20,
+    color: "#FF8A65", // Orange
+    dim: "#FF7043",
+    bright: "#FFCCBC",
   },
 
   {
@@ -127,10 +127,10 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
     icon: "◈",
     diffScore: 8,
     minBoard: 16,
-    maxBoard: 22, // diff 6
-    color: "#cc6622",
-    dim: "#8a3008",
-    bright: "#ff9966",
+    maxBoard: 22,
+    color: "#EF5350", // Red
+    dim: "#E53935",
+    bright: "#FFCDD2",
   },
 
   {
@@ -138,10 +138,10 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
     icon: "⬢",
     diffScore: 9,
     minBoard: 18,
-    maxBoard: 23, // diff 5
-    color: "#cc2222",
-    dim: "#8a0808",
-    bright: "#ff6666",
+    maxBoard: 23,
+    color: "#EC407A", // Magenta
+    dim: "#D81B60",
+    bright: "#F8BBD0",
   },
 ];
 
@@ -149,7 +149,7 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
 // Puzzle Parameters
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface PuzzleParams {
+export interface ShikakuParams {
   width: number;
   height: number;
   rectCount: number;
@@ -192,33 +192,20 @@ export interface PuzzleParams {
   anchorAmbiguity: number;
 
   label: string;
+  seed: number;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Labels
-// ─────────────────────────────────────────────────────────────────────────────
-
-const LABELS = [
-  "Trivial",
-  "Very Easy",
-  "Easy",
-  "Moderate",
-  "Medium",
-  "Tricky",
-  "Hard",
-  "Very Hard",
-  "Brutal",
-];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Score → Params
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function diffScoreToParams(
-  score: number,
-  rng: () => number,
-): PuzzleParams {
-  const idx = clamp(Math.round(score) - 1, 0, SHIKAKU_TIERS.length - 1);
+export function generateShikakuParams(
+  diffScore: number,
+  seed?: number,
+): ShikakuParams {
+  const puzzleSeed = seed || Date.now();
+  const rng = mkRng(puzzleSeed);
+  const idx = clamp(Math.round(diffScore) - 1, 0, SHIKAKU_TIERS.length - 1);
   const tier = SHIKAKU_TIERS[idx];
   const maxIdx = SHIKAKU_TIERS.length - 1;
 
@@ -249,23 +236,11 @@ export function diffScoreToParams(
 
   const hardLimit = Math.floor(boardArea / minArea);
 
-  // Target average sub-board area: easy ≈ 6, hard ≈ 4
-  const targetAvgRectArea = clamp(
-    6 - (2 * idx) / maxIdx + (rng() - 0.5) * 0.35,
-    4,
-    6,
-  );
+  const minRectCount = Math.max(4, Math.ceil(boardArea / 8));
+  const maxRectCount = Math.min(hardLimit, Math.floor(boardArea / 4));
 
-  const minRectCount = Math.max(4, Math.ceil(boardArea / 6));
-  const maxRectCount = Math.min(
-    LABELS.length,
-    hardLimit,
-    Math.floor(boardArea / 4),
-  );
-
-  const idealRectCount = boardArea / targetAvgRectArea;
-
-  // Slight jitter, but keep average area in the 4–6 range
+  const targetDensity = lerp(0.26, 0.12, idx / maxIdx);
+  const idealRectCount = boardArea * targetDensity;
   const rectCount = clamp(
     Math.round(idealRectCount * (0.9 + (rng() - 0.5) * 0.2)),
     minRectCount,
@@ -288,7 +263,8 @@ export function diffScoreToParams(
     compactness: adjustedCompactness,
     sizeVariance,
     anchorAmbiguity,
-    label: LABELS[idx],
+    label: SHIKAKU_TIERS[idx].name,
+    seed: puzzleSeed,
   };
 }
 
@@ -298,17 +274,17 @@ export function diffScoreToParams(
 
 export function getShikakuParamsByLevel(
   level: number,
-  rng: () => number,
-): PuzzleParams {
+  seed?: number,
+): ShikakuParams {
+  const levelSeed = seed ?? seedFromLevel(level);
   const diffScore = levelToDiffScore(level);
-  return diffScoreToParams(diffScore, rng);
+  return generateShikakuParams(diffScore, levelSeed);
 }
 
 export function getShikakuParamsByTierIdx(
   tierIdx: number,
-  rng?: () => number,
-): PuzzleParams {
-  const range = rng || mkRng(Date.now());
+  seed?: number,
+): ShikakuParams {
   const diffScore = SHIKAKU_TIERS[tierIdx].diffScore;
-  return diffScoreToParams(diffScore, range);
+  return generateShikakuParams(diffScore, seed);
 }
