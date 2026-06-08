@@ -1,40 +1,80 @@
 "use client";
 
 import { useState } from "react";
+import { StateProp } from "@/shared/types";
 import { ShikakuPuzzle } from "../lib/generator";
 import { userRect } from "../lib/types";
 
-export interface UseShikakuBoardState {
-  puzzle: ShikakuPuzzle | null;
-  setPuzzle: React.Dispatch<React.SetStateAction<ShikakuPuzzle | null>>;
+/**
+ * State container returned by useShikakuBoard.
+ */
+export interface UseShikakuBoardReturn {
+  /**
+   * Current puzzle.
+   */
+  puzzle: StateProp<ShikakuPuzzle | null>;
 
-  userRects: userRect[] | [];
-  setuserRects: React.Dispatch<React.SetStateAction<userRect[] | []>>;
+  /**
+   * User-created rectangles.
+   */
+  userRects: StateProp<userRect[]>;
 
-  isSolutionVisible: boolean;
-  setIsSolutionVisible: React.Dispatch<React.SetStateAction<boolean>>;
+  /**
+   * Whether the solver solution is visible.
+   */
+  isSolutionVisible: StateProp<boolean>;
 
-  solverSolution: userRect[] | null;
-  setSolverSolution: React.Dispatch<React.SetStateAction<userRect[] | null>>;
+  /**
+   * Solver-generated solution.
+   */
+  solverSolution: StateProp<userRect[] | null>;
+
+  attempt: StateProp<number>;
+
+  solverPuzzle: StateProp<Partial<ShikakuPuzzle> | null>;
 }
 
-export default function useShikakuBoard(): UseShikakuBoardState {
-  // Puzzle state
+/**
+ * Manages all board-related state for a Shikaku puzzle.
+ */
+export default function useShikakuBoard(): UseShikakuBoardReturn {
   const [puzzle, setPuzzle] = useState<ShikakuPuzzle | null>(null);
-  const [userRects, setuserRects] = useState<userRect[]>([]);
-
-  // Solver state
-  const [isSolutionVisible, setIsSolutionVisible] = useState<boolean>(false);
+  const [userRects, setUserRects] = useState<userRect[]>([]);
+  const [isSolutionVisible, setIsSolutionVisible] = useState(false);
   const [solverSolution, setSolverSolution] = useState<userRect[] | null>(null);
+  const [attempt, setAttempt] = useState<number>(1);
+  const [solverPuzzle, setSolverPuzzle] =
+    useState<Partial<ShikakuPuzzle> | null>(null);
 
   return {
-    puzzle,
-    setPuzzle,
-    userRects,
-    setuserRects,
-    isSolutionVisible,
-    setIsSolutionVisible,
-    solverSolution,
-    setSolverSolution,
+    puzzle: {
+      value: puzzle,
+      setValue: setPuzzle,
+    },
+
+    userRects: {
+      value: userRects,
+      setValue: setUserRects,
+    },
+
+    isSolutionVisible: {
+      value: isSolutionVisible,
+      setValue: setIsSolutionVisible,
+    },
+
+    solverSolution: {
+      value: solverSolution,
+      setValue: setSolverSolution,
+    },
+
+    attempt: {
+      value: attempt,
+      setValue: setAttempt,
+    },
+
+    solverPuzzle: {
+      value: solverPuzzle,
+      setValue: setSolverPuzzle,
+    },
   };
 }

@@ -10,7 +10,7 @@ import {
 import {
   getShikakuParamsByTierIdx,
   SHIKAKU_TIERS,
-  type PuzzleParams,
+  type ShikakuParams,
 } from "./difficulty";
 
 import { mkRng } from "@/shared/algorithms";
@@ -19,16 +19,15 @@ import { mkRng } from "@/shared/algorithms";
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function makeParams(partial: Partial<PuzzleParams> = {}): PuzzleParams {
+function makeParams(partial: Partial<ShikakuParams> = {}): ShikakuParams {
   return {
     width: 8,
     height: 8,
     rectCount: 10,
-    minArea: 2,
     compactness: 0.5,
     sizeVariance: 0.5,
     anchorAmbiguity: 0.5,
-    label: "Test",
+    tier: SHIKAKU_TIERS[0],
     seed: 123,
     ...partial,
   };
@@ -64,16 +63,6 @@ describe("generateShikakuBoard()", () => {
     for (const r of rects) {
       expect(r.w).toBeGreaterThan(0);
       expect(r.h).toBeGreaterThan(0);
-    }
-  });
-
-  it("respects minimum area", () => {
-    const rects = generateShikakuBoard(10, 10, 12, mkRng(123), {
-      minArea: 4,
-    });
-
-    for (const r of rects) {
-      expect(r.w * r.h).toBeGreaterThanOrEqual(4);
     }
   });
 
@@ -151,7 +140,7 @@ describe("generateShikaku()", () => {
   it("returns valid puzzle info", () => {
     const params = makeParams();
 
-    const result = generateShikaku(params, 123);
+    const result = generateShikaku(params);
 
     expect(result.rectCount).toBe(params.rectCount);
     expect(result.infos.length).toBe(params.rectCount);
@@ -161,8 +150,6 @@ describe("generateShikaku()", () => {
     expect(labels.size).toBe(params.rectCount);
 
     for (const r of result.infos) {
-      expect(r.area).toBeGreaterThanOrEqual(params.minArea);
-
       expect(r.anchor.x).toBeGreaterThanOrEqual(0);
       expect(r.anchor.y).toBeGreaterThanOrEqual(0);
 
@@ -174,8 +161,8 @@ describe("generateShikaku()", () => {
   it("is deterministic", () => {
     const params = makeParams();
 
-    const a = generateShikaku(params, 123);
-    const b = generateShikaku(params, 123);
+    const a = generateShikaku(params);
+    const b = generateShikaku(params);
 
     expect(a).toEqual(b);
   });
@@ -183,8 +170,8 @@ describe("generateShikaku()", () => {
   it("changes with different seeds", () => {
     const params = makeParams();
 
-    const a = generateShikaku(params, 1);
-    const b = generateShikaku(params, 2);
+    const a = generateShikaku({ ...params, seed: 1 });
+    const b = generateShikaku({ ...params, seed: 2 });
 
     expect(a).not.toEqual(b);
   });
@@ -194,7 +181,7 @@ describe("generateShikaku()", () => {
       anchorAmbiguity: 0,
     });
 
-    const result = generateShikaku(params, 123);
+    const result = generateShikaku(params);
 
     let centerish = 0;
 
@@ -218,7 +205,7 @@ describe("generateShikaku()", () => {
       anchorAmbiguity: 1,
     });
 
-    const result = generateShikaku(params, 123);
+    const result = generateShikaku(params);
 
     const edgeAnchors = result.infos.filter((r) => {
       return (
@@ -239,7 +226,7 @@ describe("generateShikaku()", () => {
       rectCount: 25,
     });
 
-    const res = generateShikaku(params, Date.now());
+    const res = generateShikaku(params);
     const grid = Array.from({ length: params.height }, () =>
       Array(params.width).fill("."),
     );
@@ -360,8 +347,9 @@ describe("generateShikakuByTierIdx()", () => {
   });
 
   it("throws on invalid tier index", () => {
-    expect(() => generateShikakuByTierIdx(SHIKAKU_TIERS.length + 1)).toThrow(
-      "Tier not found",
+    const tierIdx = SHIKAKU_TIERS.length + 1;
+    expect(() => generateShikakuByTierIdx(tierIdx)).toThrow(
+      `Tier index ${tierIdx} out of range`,
     );
   });
 
@@ -382,7 +370,7 @@ describe("generateShikakuByTierIdx()", () => {
     for (let seed = 1; seed <= 100; seed++) {
       const params = getShikakuParamsByTierIdx(0, seed);
 
-      expect(() => generateShikaku(params, seed)).not.toThrow();
+      expect(() => generateShikaku(params)).not.toThrow();
     }
   });
 
@@ -392,7 +380,7 @@ describe("generateShikakuByTierIdx()", () => {
     for (let seed = 1; seed <= 100; seed++) {
       const params = getShikakuParamsByTierIdx(tierIdx, seed);
 
-      expect(() => generateShikaku(params, seed)).not.toThrow();
+      expect(() => generateShikaku(params)).not.toThrow();
     }
   });
 });

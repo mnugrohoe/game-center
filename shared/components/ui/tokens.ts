@@ -98,6 +98,12 @@ export const colorFromIndex = (i: number) => {
   const hue = (i * 137.508) % 360;
   const saturation = [65, 75, 85][Math.floor(i / 360) % 3];
   const lightness = [50, 60, 70][Math.floor(i / 120) % 3];
+  // Berubah setiap 3 indeks (Sangat pekat -> Sedang -> Agak pudar)
+  // const saturation = [85, 70, 95][i % 3];
+
+  // Berubah setiap 2 indeks (Kontras Gelap -> Terang -> Gelap -> Terang)
+  // Ini sangat krusial agar indeks yang berurutan punya kontras visual yang tajam
+  // const lightness = [45, 65][i % 2];
   const luminance = hslToLuminance(hue, saturation, lightness);
   return {
     bg: `${hue} ${saturation}% ${lightness}%`,

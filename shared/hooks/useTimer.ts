@@ -1,48 +1,100 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-export interface TimerHooksProps {
+/**
+ * API returned by useTimer.
+ */
+export interface UseTimerReturn {
+  /**
+   * Elapsed time in milliseconds.
+   */
   elapsedTime: number;
+
+  /**
+   * Whether the timer is currently running.
+   */
+  isRunning: boolean;
+
+  /**
+   * Starts or resumes the timer.
+   */
   startTimer: () => void;
+
+  /**
+   * Pauses the timer.
+   */
   stopTimer: () => void;
+
+  /**
+   * Stops the timer and resets elapsed time.
+   */
   resetTimer: () => void;
 }
 
-export default function useTimer(): TimerHooksProps {
-  const [isStop, setIsStop] = useState(true);
+/**
+ * Simple stopwatch hook.
+ *
+ * Tracks elapsed time in milliseconds and supports
+ * start, stop, and reset operations.
+ */
+export default function useTimer(): UseTimerReturn {
   const [elapsedTime, setElapsedTime] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
 
-  const startTimer = () => {
-    setIsStop(false);
-    setStartedAt(Date.now());
-  };
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const stopTimer = () => {
-    setIsStop(true);
-  };
+  const startedAtRef = useRef<number | null>(null);
+  const accumulatedRef = useRef(0);
 
-  const resetTimer = () => {
-    setStartedAt(null);
+  const startTimer = useCallback(() => {
+    if (isRunning) return;
+
+    startedAtRef.current = Date.now();
+    setIsRunning(true);
+  }, [isRunning]);
+
+  const stopTimer = useCallback(() => {
+    if (!isRunning || startedAtRef.current === null) return;
+
+    accumulatedRef.current += Date.now() - startedAtRef.current;
+
+    startedAtRef.current = null;
+    setIsRunning(false);
+  }, [isRunning]);
+
+  const resetTimer = useCallback(() => {
+    setIsRunning(false);
+
+    accumulatedRef.current = 0;
+    startedAtRef.current = null;
+
     setElapsedTime(0);
-  };
+  }, []);
 
   useEffect(() => {
-    if (startedAt && !isStop) {
-      timerRef.current = setInterval(() => {
-        setElapsedTime(Date.now() - startedAt);
-      }, 500);
+    if (!isRunning) {
+      return;
     }
 
+    intervalRef.current = setInterval(() => {
+      const runningTime =
+        startedAtRef.current === null ? 0 : Date.now() - startedAtRef.current;
+
+      setElapsedTime(accumulatedRef.current + runningTime);
+    }, 250);
+
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-  }, [startedAt, isStop]);
+  }, [isRunning]);
 
   return {
     elapsedTime,
+    isRunning,
     startTimer,
     stopTimer,
     resetTimer,

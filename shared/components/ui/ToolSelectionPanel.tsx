@@ -1,65 +1,123 @@
 "use client";
+
 import { useState } from "react";
-import GeneratorPanel, { GeneratorPanelProps } from "./GeneratorPanel";
 import { T } from "./tokens";
 import { Divider } from "./primitive";
-import { SolverPanelGenerator } from "./SolverPanel";
+import GeneratorPanel, { Tier } from "./GeneratorPanel";
+import {
+  SolverPanelGenerator,
+  ParamValues,
+  SolverGeneratorParamConfig,
+} from "./SolverPanel";
 import { ToolSelectionMode } from "@/shared/types";
+import { GeneratorMode, StateProp } from "@/shared/types";
 
-type ToolSelectionPanelProps = GeneratorPanelProps;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-export default function ToolSelectionPanel({
-  tiers,
-  tierIdx,
-  setTier,
-  seed,
-  onChangeSeed,
-  onGenerate,
-  params,
-  mode,
-  setMode,
-  level,
-  setLevel,
-}: ToolSelectionPanelProps) {
-  const [tool, setTool] = useState<ToolSelectionMode>("Generator");
-  const color = tiers[tierIdx].color ?? T.accent;
+/** Props untuk mode Generator — diteruskan langsung ke GeneratorPanel */
+export type GeneratorConfig = {
+  tiers: Tier[];
+  tier: StateProp<number>;
+  mode: StateProp<GeneratorMode>;
+  level: StateProp<number>;
+  seed: StateProp<number>;
+  onGenerate: () => void;
+};
+
+/**
+ * Props untuk mode Solver — dua varian:
+ *
+ * - `"params"` → SolverPanelGenerator (form params + generate button)
+ * - `"items"`  → SolverPanel klasik (item list, stats, action buttons)
+ */
+export type SolverConfig = {
+  paramsConfig: SolverGeneratorParamConfig[];
+  onGenerate: (values: ParamValues) => void;
+};
+
+export type ToolSelectionPanelProps = {
+  generator: GeneratorConfig;
+  solver: SolverConfig;
+};
+
+// ---------------------------------------------------------------------------
+// Tab Bar
+// ---------------------------------------------------------------------------
+
+function TabBar({
+  active,
+  color,
+  onChange,
+}: {
+  active: ToolSelectionMode;
+  color: string;
+  onChange: (t: ToolSelectionMode) => void;
+}) {
+  const tabs: ToolSelectionMode[] = ["Generator", "Solver"];
+
   return (
-    <>
-      <div className="flex gap-2 p-2">
-        {["Generator", "Solver"].map((t) => (
+    <div className="flex gap-2 p-2">
+      {tabs.map((t) => {
+        const isActive = active === t;
+        return (
           <button
             key={t}
-            onClick={() => setTool(t as "Generator" | "Solver")}
-            className="flex-1 p-2 text-sm text-center rounded-sm border cursor-pointer"
+            onClick={() => onChange(t)}
+            className="flex-1 p-2 text-sm text-center rounded-sm border cursor-pointer transition-colors duration-150"
             style={{
-              color: tool === t ? color : T.text2,
-              borderColor: tool === t ? color : T.border2,
-              backgroundColor: tool === t ? color + "20" : "transparent",
+              fontFamily: T.font,
+              color: isActive ? color : T.text2,
+              borderColor: isActive ? color : T.border2,
+              backgroundColor: isActive ? color + "20" : "transparent",
             }}
           >
             {t}
           </button>
-        ))}
-      </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------------------
+
+export default function ToolSelectionPanel({
+  generator,
+  solver,
+}: ToolSelectionPanelProps) {
+  const [tool, setTool] = useState<ToolSelectionMode>("Generator");
+
+  const { tiers, tier } = generator;
+  const color = tiers[tier.value]?.color ?? T.accent;
+
+  return (
+    <>
+      <TabBar active={tool} color={color} onChange={setTool} />
+
       <Divider />
+
       {tool === "Generator" && (
         <GeneratorPanel
-          {...{
-            tiers,
-            tierIdx,
-            setTier,
-            seed,
-            onChangeSeed,
-            onGenerate,
-            params,
-            mode,
-            setMode,
-            level,
-            setLevel,
-          }}
+          tiers={generator.tiers}
+          tier={generator.tier}
+          mode={generator.mode}
+          level={generator.level}
+          seed={generator.seed}
+          onGenerate={generator.onGenerate}
         />
       )}
-      {tool === "Solver" && <SolverPanelGenerator />}
+
+      {tool === "Solver" && (
+        <SolverPanelGenerator
+          color={color}
+          paramsConfig={solver.paramsConfig}
+          onGenerate={solver.onGenerate}
+        />
+      )}
     </>
   );
 }

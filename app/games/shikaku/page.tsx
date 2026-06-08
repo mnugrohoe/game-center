@@ -1,87 +1,57 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 // shared UI
 import GameShell from "@/shared/components/layout/GameShell";
 import { ParamItem } from "@/shared/components/ui/GeneratorPanel";
-import SolverPanel, {
+import {
   ActionDef,
   StatItem,
+  SolverPanel,
+  SolverGeneratorParamConfig,
+  ParamValues,
 } from "@/shared/components/ui/SolverPanel";
 import { SolveBanner, SolverStatusBar } from "@/shared/components/ui/primitive";
 import { T, formatTime } from "@/shared/components/ui/tokens";
 
 // shikaku-specific
 import ShikakuGrid from "@/games/shikaku/components/ShikakuGrid";
-import {
-  generateShikakuByLevel,
-  generateShikakuByTierIdx,
-  ShikakuPuzzle,
-} from "@/games/shikaku/lib/generator";
-import { solveShikaku } from "@/games/shikaku/lib/solver";
+
 import LogoIcon from "@/games/shikaku/components/Logo";
 import {
   getShikakuParamsByLevel,
   getShikakuParamsByTierIdx,
-  levelToTierIdx,
   SHIKAKU_TIERS,
   ShikakuParams,
 } from "@/games/shikaku/lib/difficulty";
 import ParamsPanel from "@/shared/components/ui/ParamsPanel";
 import ToolSelectionPanel from "@/shared/components/ui/ToolSelectionPanel";
 import {
-  ShikakuBoardProvider,
-  useShikakuBoardCtx,
-} from "@/games/shikaku/components/ShikakuBoardContext";
-
+  ShikakuProvider,
+  useShikaku,
+} from "@/games/shikaku/components/ShikakuContext";
+import { GeneratorMode } from "@/shared/types";
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
 function ShikakuGame() {
-  const {
-    puzzle,
-    elapsedTime,
-    mode,
-    setMode,
-    tierIdx,
-    setTierIdx,
-    seed,
-    setSeed,
-    level: currentLevel,
-    setLevel: setCurrentLevel,
-    isSolutionVisible,
-    solverSolution,
-    ...ctx
-  } = useShikakuBoardCtx();
-
-  const [solverStatus, setSolverStatus] = useState<
-    null | "solving" | "done" | "error"
-  >(null);
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  const tier = SHIKAKU_TIERS[tierIdx];
-
-  function resetGame(p: ShikakuPuzzle) {
-    ctx.setPuzzle(p);
-    ctx.setuserRects([]);
-    ctx.setIsSolutionVisible(false);
-    ctx.setSolverSolution(null);
-    setSolverStatus(null);
-    ctx.resetTimer();
-  }
+  const ctx = useShikaku();
 
   const params: ShikakuParams | null = useMemo(() => {
-    if (mode === "Difficulty") {
-      return getShikakuParamsByTierIdx(tierIdx, seed);
+    if (ctx.generator.mode.value === ("Difficulty" as GeneratorMode)) {
+      return getShikakuParamsByTierIdx(
+        ctx.generator.tierIdx.value,
+        ctx.generator.seed.value,
+      );
     }
 
-    if (mode === "Level") {
-      return getShikakuParamsByLevel(currentLevel, seed);
+    if (ctx.generator.mode.value === "Level") {
+      return getShikakuParamsByLevel(ctx.generator.level.value);
     }
 
     return null;
-  }, [mode, tierIdx, currentLevel, seed]);
+  }, [ctx.generator]);
 
   const displayParams = useMemo((): ParamItem[] => {
     if (!params) return [];
@@ -104,12 +74,7 @@ function ShikakuGame() {
         pct: params.rectCount / 100,
         color: "#22c55e",
       },
-      {
-        label: "Min Area",
-        display: params.minArea,
-        pct: 1,
-        color: "#f59e0b",
-      },
+
       {
         label: "Compactness",
         display: params.compactness.toFixed(2),
@@ -136,60 +101,10 @@ function ShikakuGame() {
       },
     ];
   }, [params]);
+
   const validRect = useMemo(() => {
-    return ctx.userRects.filter((r) => r.validAnchor);
-  }, [ctx.userRects]);
-
-  // ── Generate ──────────────────────────────────────────────────────────────
-  function handleGenerate(seeded?: number) {
-    const actualSeed = seeded ?? seed;
-    try {
-      const puzzle =
-        mode === "Difficulty"
-          ? generateShikakuByTierIdx(tierIdx, actualSeed)
-          : generateShikakuByLevel(currentLevel, actualSeed);
-      resetGame(puzzle);
-    } catch (e) {
-      console.error("Generator error:", e);
-    }
-  }
-
-  function handleNext() {
-    if (mode === "Level") {
-      const nextLevel = currentLevel + 1;
-      setCurrentLevel(nextLevel);
-      setTierIdx(levelToTierIdx(nextLevel, SHIKAKU_TIERS.length));
-      handleGenerate();
-    }
-    if (mode === "Difficulty") {
-      const newSeed = Math.floor(Math.random() * 999999);
-      setSeed(newSeed);
-      handleGenerate(newSeed);
-    }
-  }
-
-  // ── Solver ────────────────────────────────────────────────────────────────
-  function handleAutoSolve() {
-    if (!puzzle) return;
-    setSolverStatus("solving");
-    setTimeout(() => {
-      try {
-        const result = solveShikaku(puzzle.width, puzzle.height, puzzle.infos);
-        ctx.setSolverSolution(result);
-        setSolverStatus(result ? "done" : "error");
-      } catch {
-        setSolverStatus("error");
-      }
-    }, 60);
-  }
-
-  function handleToggleSolution() {
-    ctx.setIsSolutionVisible((s) => !s);
-  }
-
-  function handleClear() {
-    ctx.setuserRects([]);
-  }
+    return ctx.board.userRects.value.filter((r) => r.validAnchor);
+  }, [ctx.board.userRects]);
 
   // ── Solver panel actions ──────────────────────────────────────────────────
   const solverActions: ActionDef[] = [
@@ -198,33 +113,56 @@ function ShikakuGame() {
       icon: "⚙",
       color: "#a78bfa",
       disabled:
-        !puzzle ||
-        solverStatus === "solving" ||
-        isSolutionVisible ||
-        (solverSolution ? solverSolution?.length > 1 : false),
-      onClick: handleAutoSolve,
+        (!ctx.board.puzzle.value && !ctx.board.solverPuzzle.value) ||
+        ctx.solverStatus.value === "solving" ||
+        ctx.board.isSolutionVisible.value ||
+        (ctx.board.solverSolution.value
+          ? ctx.board.solverSolution?.value.length > 1
+          : false),
+      onClick: ctx.autoSolve,
     },
     {
-      label: isSolutionVisible ? "Hide Solution" : "Show Solution",
-      icon: isSolutionVisible ? "◎" : "◉",
+      label: ctx.board.isSolutionVisible.value
+        ? "Hide Solution"
+        : "Show Solution",
+      icon: ctx.board.isSolutionVisible.value ? "◎" : "◉",
       color: T.cyan,
-      disabled: !solverSolution,
-      hidden: !solverSolution,
-      onClick: handleToggleSolution,
+      disabled: !ctx.board.solverSolution.value,
+      hidden: !ctx.board.solverSolution.value,
+      onClick: ctx.toggleSolution,
     },
     {
       label: "Clear Board",
       icon: "⌫",
       color: T.text2,
-      disabled: !puzzle,
-      onClick: handleClear,
+      disabled: !ctx.board.puzzle.value && !ctx.board.solverPuzzle,
+      onClick: ctx.clearBoard,
     },
     {
       label: "New Puzzle",
       icon: "↺",
       color: T.green,
-      disabled: !puzzle,
-      onClick: handleNext,
+      disabled: !ctx.board.puzzle.value && !ctx.board.solverPuzzle,
+      onClick: ctx.loadNextPuzzle,
+    },
+  ];
+
+  const solverBoardParams: SolverGeneratorParamConfig[] = [
+    {
+      key: "cols",
+      label: "Width",
+      type: "number",
+      defaultValue: 10,
+      min: 2,
+      max: 30,
+    },
+    {
+      key: "rows",
+      label: "Height",
+      type: "number",
+      defaultValue: 12,
+      min: 2,
+      max: 30,
     },
   ];
 
@@ -232,44 +170,63 @@ function ShikakuGame() {
   const stats: StatItem[] = [
     {
       label: "Board",
-      value: puzzle ? `${puzzle.width}×${puzzle.height}` : "—",
+      value: ctx.board.puzzle.value
+        ? `${ctx.board.puzzle.value.width}×${ctx.board.puzzle.value.height}`
+        : "—",
     },
     {
       label: "Regions",
-      value: puzzle ? puzzle.rectCount : "—",
+      value: ctx.board.puzzle.value ? ctx.board.puzzle.value.rectCount : "—",
     },
     {
       label: "Placed",
-      value: puzzle ? `${validRect.length}/${puzzle.infos.length}` : "—",
+      value: ctx.board.puzzle.value
+        ? `${validRect.length}/${ctx.board.puzzle.value.infos.length}`
+        : "—",
     },
     {
       label: "Time",
-      value: formatTime(elapsedTime),
+      value: formatTime(ctx.timer.elapsedTime),
     },
   ];
+
+  const handleGenerateSolverBoard = (params: ParamValues) => {
+    const blankBoard = {
+      width: params.cols as number,
+      height: params.rows as number,
+    };
+    ctx.board.puzzle.setValue(null);
+    ctx.board.solverPuzzle.setValue(blankBoard);
+    ctx.resetGame();
+  };
+
+  const handleGenerateBoard = () => {
+    ctx.board.solverPuzzle.setValue(null);
+    ctx.generatePuzzle();
+  };
 
   return (
     <GameShell
       gameName="SHIKAKU"
       logoIcon={<LogoIcon />}
-      accentColor={tier.color}
-      tierLabel={tier.name}
-      tierIcon={tier.icon}
-      seed={seed}
-      elapsed={elapsedTime}
+      accentColor={ctx.board.puzzle.value?.params.tier.color}
+      tierLabel={ctx.board.puzzle.value?.params.tier.name}
+      tierIcon={ctx.board.puzzle.value?.params.tier.icon}
+      seed={ctx.board.puzzle.value?.params.seed}
+      elapsed={ctx.timer.elapsedTime}
       placedCount={validRect.length}
-      totalCount={puzzle ? puzzle.infos.length : 0}
+      totalCount={ctx.board.puzzle.value?.infos.length ?? 0}
       isSolved={ctx.isComplete}
       // ===============================================================================
       inforPanel={
         <SolverStatusBar
-          status={solverStatus}
+          status={ctx.solverStatus.value}
           message={
-            solverStatus === "solving"
+            ctx.solverStatus.value === "solving"
               ? "Running backtracking solver…"
-              : solverStatus === "done"
-                ? `Solution found — ${solverSolution?.length} rectangles`
-                : solverStatus === "error"
+              : ctx.solverStatus.value === "done"
+                ? `Solution found — ${ctx.board.solverSolution.value?.length} rectangles`
+                : ctx.solverStatus.value === "error"
                   ? "No solution found"
                   : ""
           }
@@ -278,17 +235,18 @@ function ShikakuGame() {
       // ===============================================================================
       leftPanel={
         <ToolSelectionPanel
-          tiers={SHIKAKU_TIERS}
-          tierIdx={tierIdx}
-          setTier={setTierIdx}
-          seed={seed}
-          onChangeSeed={setSeed}
-          onGenerate={handleGenerate}
-          params={displayParams}
-          mode={mode}
-          setMode={setMode}
-          level={currentLevel}
-          setLevel={setCurrentLevel}
+          generator={{
+            tiers: SHIKAKU_TIERS,
+            tier: ctx.generator.tierIdx,
+            seed: ctx.generator.seed,
+            onGenerate: handleGenerateBoard,
+            mode: ctx.generator.mode,
+            level: ctx.generator.level,
+          }}
+          solver={{
+            paramsConfig: solverBoardParams,
+            onGenerate: handleGenerateSolverBoard,
+          }}
         />
       }
       // ===============================================================================
@@ -296,8 +254,8 @@ function ShikakuGame() {
         <>
           <SolveBanner
             show={ctx.isComplete}
-            timeLabel={formatTime(elapsedTime)}
-            onNext={handleNext}
+            timeLabel={formatTime(ctx.timer.elapsedTime)}
+            onNext={ctx.loadNextPuzzle}
           />
 
           <ShikakuGrid />
@@ -308,16 +266,13 @@ function ShikakuGame() {
         <SolverPanel
           panelLabel="Params & Stats"
           placedCount={validRect.length}
-          totalCount={puzzle ? puzzle.infos.length : 0}
+          totalCount={
+            ctx.board.puzzle.value ? ctx.board.puzzle.value.infos.length : 0
+          }
           stats={stats}
           actions={solverActions}
         >
-          <ParamsPanel
-            seed={seed}
-            onChangeSeed={setSeed}
-            params={displayParams}
-            mode={mode}
-          />
+          <ParamsPanel params={displayParams} />
         </SolverPanel>
       }
     />
@@ -325,9 +280,12 @@ function ShikakuGame() {
 }
 
 export default function ShikakuGamePage() {
+  useEffect(() => {
+    document.title = "Shikaku Puzzle";
+  }, []);
   return (
-    <ShikakuBoardProvider>
+    <ShikakuProvider>
       <ShikakuGame />
-    </ShikakuBoardProvider>
+    </ShikakuProvider>
   );
 }

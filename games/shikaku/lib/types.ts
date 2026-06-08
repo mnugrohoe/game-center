@@ -23,7 +23,7 @@ export type userRect = Rect & {
 };
 
 export type RectInfo = {
-  id: string;
+  id: string | number;
   area: number;
   anchor: Cell;
 };

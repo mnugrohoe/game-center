@@ -27,12 +27,6 @@ describe("generateShikakuParams", () => {
     });
   });
 
-  it("should always use minimum area 2", () => {
-    const params = generateShikakuParams(5, 123);
-
-    expect(params.minArea).toBe(2);
-  });
-
   it("should keep compactness in valid range", () => {
     for (let score = 1; score <= 9; score++) {
       const params = generateShikakuParams(score, 123);
@@ -67,9 +61,7 @@ describe("generateShikakuParams", () => {
       const boardArea = params.width * params.height;
 
       expect(params.rectCount).toBeGreaterThanOrEqual(4);
-      expect(params.rectCount).toBeLessThanOrEqual(
-        Math.floor(boardArea / params.minArea),
-      );
+      expect(params.rectCount).toBeLessThanOrEqual(Math.floor(boardArea / 2));
     }
   });
 
@@ -94,20 +86,6 @@ describe("getShikakuParamsByLevel", () => {
     const b = getShikakuParamsByLevel(50);
 
     expect(a).toEqual(b);
-  });
-
-  it("should allow explicit seed override", () => {
-    const a = getShikakuParamsByLevel(50, 123);
-    const b = getShikakuParamsByLevel(50, 123);
-
-    expect(a).toEqual(b);
-  });
-
-  it("should produce different results for different seeds", () => {
-    const a = getShikakuParamsByLevel(50, 111);
-    const b = getShikakuParamsByLevel(50, 222);
-
-    expect(a).not.toEqual(b);
   });
 });
 

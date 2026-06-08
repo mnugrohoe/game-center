@@ -7,15 +7,11 @@
  * zero hardcoded hex in here.
  */
 
-import { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/shared/utils/cn";
-
-type BaseProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  children: ReactNode;
-};
+import { ButtonType } from "@/shared/types";
 
 /** Secondary game actions — Undo, Reset, Clear marks … */
-export function ControlButton({ children, className, ...props }: BaseProps) {
+export function ControlButton({ children, className, ...props }: ButtonType) {
   return (
     <button className={cn("btn-control", className)} {...props}>
       {children}
@@ -24,7 +20,7 @@ export function ControlButton({ children, className, ...props }: BaseProps) {
 }
 
 /** Primary CTA — Generate, Solve, Play … */
-export function ActionButton({ children, className, ...props }: BaseProps) {
+export function ActionButton({ children, className, ...props }: ButtonType) {
   return (
     <button className={cn("btn-action", className)} {...props}>
       {children}
@@ -33,7 +29,7 @@ export function ActionButton({ children, className, ...props }: BaseProps) {
 }
 
 /** Text-level action — Back, Menu, Peek … */
-export function GhostButton({ children, className, ...props }: BaseProps) {
+export function GhostButton({ children, className, ...props }: ButtonType) {
   return (
     <button className={cn("btn-ghost", className)} {...props}>
       {children}
@@ -46,7 +42,11 @@ export function LoadingSpinner({ size = 16 }: { size?: number }) {
   return (
     <span
       className="rounded-full border-2 border-gold-600 border-t-gold-200 inline-block shrink-0"
-      style={{ width: size, height: size, animation: "spin 0.7s linear infinite" }}
+      style={{
+        width: size,
+        height: size,
+        animation: "spin 0.7s linear infinite",
+      }}
     />
   );
 }

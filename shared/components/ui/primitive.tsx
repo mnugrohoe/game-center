@@ -24,6 +24,8 @@ import { T } from "./tokens";
 import ProgressRing from "./ProgressRing";
 import { ColorType, StyleType } from "@/shared/types";
 import { StatItem } from "./SolverPanel";
+import { FaMinus, FaPlus } from "react-icons/fa6";
+import { clamp } from "@/shared/algorithms";
 
 export { ProgressRing };
 
@@ -116,6 +118,76 @@ export function SectionLabel({
       }}
     >
       {children}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// InputNumberRow
+// ─────────────────────────────────────────────────────────────────────────────
+export function InputNumberRow({
+  value = 1,
+  setValue,
+  min = 1,
+  max = 100,
+  color = T.accent,
+}: {
+  value: number;
+  setValue: (value: number) => void;
+  min?: number;
+  max?: number;
+  color?: ColorType;
+}) {
+  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    const raw = event.target.value;
+    if (!raw) {
+      setValue(min);
+      return;
+    }
+
+    setValue(clamp(Number(raw), min, max));
+  };
+
+  const decrement = () => {
+    setValue(clamp(value - 1, min, max));
+  };
+
+  const increment = () => {
+    setValue(clamp(value + 1, min, max));
+  };
+
+  return (
+    <div className="flex justify-center flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={decrement}
+          className="flex h-8 w-8 items-center justify-center rounded"
+          style={{ color: color }}
+        >
+          <FaMinus size={12} />
+        </button>
+
+        <input
+          type="number"
+          value={value}
+          onBlur={handleBlur}
+          onChange={(e) => setValue(Number(e.target.value) || min)}
+          className="w-16 bg-transparent text-center border-none outline-none ring-0 focus:outline-none focus:ring-0 focus:border-none flex-1"
+          style={{ color: `${color}88` }}
+        />
+
+        <button
+          type="button"
+          onClick={increment}
+          className="flex h-8 w-8 items-center justify-center rounded"
+          style={{ color: color }}
+        >
+          <FaPlus size={12} />
+        </button>
+      </div>
+
+      <ParamsBar isInput={true} {...{ min, max, value, setValue, color }} />
     </div>
   );
 }
@@ -272,6 +344,7 @@ export interface ParamRowProps {
   pct: number;
   color: ColorType;
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ParamRow
 // ─────────────────────────────────────────────────────────────────────────────
@@ -310,26 +383,81 @@ export function ParamRow({
           {display}
         </div>
       </div>
+      <ParamsBar pct={pct} color={color} />
+    </div>
+  );
+}
+
+function ParamsBar({
+  value = 0,
+  setValue,
+  pct = 0,
+  color = T.accent,
+  min = 0,
+  max = 100,
+  isInput = false,
+}: {
+  value?: number;
+  setValue?: (value: number) => void;
+  pct?: number;
+  color?: ColorType;
+  min?: number;
+  max?: number;
+  isInput?: boolean;
+}) {
+  const progress = clamp(
+    isInput ? (max === min ? 0 : (value - min) / (max - min)) : pct,
+    0,
+    1,
+  );
+
+  return (
+    <div
+      className="relative w-full h-1 rounded-sm overflow-visible mt-0.75"
+      style={{ background: T.bg4, color: color }}
+    >
+      {/* colored progress */}
       <div
-        className="w-full"
+        className="h-full rounded-sm "
         style={{
-          height: 4,
-          background: T.bg4,
-          borderRadius: 2,
-          overflow: "hidden",
-          marginTop: 3,
+          width: `${progress * 100}%`,
+          background: color,
+          transition: "width .3s",
         }}
-      >
-        <div
-          style={{
-            width: `${Math.round(Math.max(0, Math.min(1, pct)) * 100)}%`,
-            height: "100%",
-            background: color,
-            borderRadius: 2,
-            transition: "width .3s",
-          }}
+      />
+
+      {isInput && (
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => setValue?.(Number(e.target.value))}
+          className="slider absolute left-0 top-1/2 w-full -translate-y-1/2 cursor-pointer appearance-none bg-transparent h-4"
         />
-      </div>
+      )}
+      <style jsx>{`
+        .slider {
+          -webkit-appearance: none;
+          appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 1px;
+          height: 1px;
+          border-radius: 50%;
+          background: transparent;
+        }
+
+        .slider::-moz-range-thumb {
+          width: 1px;
+          height: 1px;
+          border-radius: 50%;
+          background: transparent;
+          border: none;
+        }
+      `}</style>
     </div>
   );
 }
@@ -357,17 +485,15 @@ export function Spinner({ color = T.accent }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // SolverStatusBar
 // ─────────────────────────────────────────────────────────────────────────────
-/**
- * status: null | "solving" | "done" | "error"
- */
+export type SolverStatus = "idle" | "solving" | "done" | "error";
 export function SolverStatusBar({
   status,
   message,
 }: {
-  status: null | "solving" | "done" | "error";
+  status: SolverStatus;
   message: string;
 }) {
-  if (!status) return null;
+  if (status === "idle") return;
   const color =
     status === "done" ? T.green : status === "error" ? T.red : "#a78bfa";
   return (
@@ -397,45 +523,51 @@ export function SolverStatusBar({
 // ─────────────────────────────────────────────────────────────────────────────
 // SolveBanner
 // ─────────────────────────────────────────────────────────────────────────────
-export function SolveBanner({
-  show,
-  timeLabel,
-  onNext,
-}: {
+interface SolveBannerProps {
   show: boolean;
-  timeLabel?: string;
+  timeLabel: string;
   onNext: () => void;
-}) {
-  if (!show) return null;
+}
+
+export function SolveBanner({ show, timeLabel, onNext }: SolveBannerProps) {
   return (
-    <div className="absolute z-90 w-full h-full flex items-center justify-center bg-black/70">
-      <div
-        className="flex items-center gap-2 max-w-140 box-border px-4.5 py-3 flex-col shadow-xl"
-        style={{
-          background: `${T.green}ae`,
-          border: `1px solid ${T.green}44`,
-          borderRadius: T.radius2,
-        }}
-      >
-        <span style={{ fontSize: 22 }}>🥳🎉</span>
-        <span style={{ fontSize: 16 }}>Congratulation...!!!</span>
-        <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: 2 }}>
-          SOLVED!
-        </span>
-        {timeLabel && (
-          <span style={{ fontSize: 24, opacity: 0.7 }}>{timeLabel}</span>
-        )}
-        {onNext && (
-          <button
-            onClick={onNext}
-            className="mt-10 ml-auto px-3.5 py-1.5 rounded-sm bg-transparent text-xs font-bold tracking-widest cursor-pointer border "
-            style={{ fontFamily: T.font }}
-          >
-            Next →
-          </button>
-        )}
+    show && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm select-none">
+        <div className="w-full max-w-95 mx-4 bg-[#0d0d0d] rounded-xl border border-[#00ff9d]/20 font-mono overflow-hidden">
+          <div className="flex items-center gap-1.5 px-3.5 py-2 bg-[#111] border-b border-white/5">
+            <span className="w-2 h-2 rounded-full bg-[#ff5f57]" />
+            <span className="w-2 h-2 rounded-full bg-[#ffbd2e]" />
+            <span className="w-2 h-2 rounded-full bg-[#28ca41]" />
+            <span className="ml-1.5 text-[11px] text-white/20">puzzle.exe</span>
+          </div>
+
+          <div className="px-5 py-5">
+            <div className="flex items-baseline justify-between mb-2">
+              <span className="text-lg font-medium tracking-widest text-[#00ff9d]">
+                SOLVED
+              </span>
+              <span className="text-[11px] text-white/25">exit 0</span>
+            </div>
+
+            <div className="text-[13px] text-white/50 mb-1">
+              Congratulation...!!! 🥳🎉
+            </div>
+
+            <div className="text-[12px] text-white/25 mb-5">
+              elapsed&nbsp;&nbsp;
+              <span className="text-white/60">{timeLabel}</span>
+            </div>
+
+            <button
+              onClick={onNext}
+              className="w-full py-2 text-[12px] tracking-widest text-[#00ff9d] border border-[#00ff9d]/30 rounded-md bg-transparent hover:bg-[#00ff9d]/8 transition-colors cursor-pointer"
+            >
+              ./next_puzzle
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
+    )
   );
 }
 

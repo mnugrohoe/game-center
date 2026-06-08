@@ -5,27 +5,33 @@ import { T } from "./tokens";
 import DifficultyPicker, { DifficultyPickerProps } from "./DifficultyPicker";
 import LevelPicker, { LevelPickerProps } from "./LevelPicker";
 import { ParamRowProps } from "./primitive";
-import { DiffTier, GeneratorMode } from "@/shared/types";
+import {
+  ButtonType,
+  ColorType,
+  DiffTier,
+  GeneratorMode,
+  StateProp,
+} from "@/shared/types";
 import { levelToTierIdx } from "@/shared/algorithms";
+import { LuSparkles } from "react-icons/lu";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export interface PickerProps {
   tiers: Tier[];
-  tierIdx: number;
-  setTier: React.Dispatch<React.SetStateAction<number>>;
-  seed?: number;
-  onChangeSeed?: React.Dispatch<React.SetStateAction<number>>;
+  tier: StateProp<number>;
+  mode: StateProp<GeneratorMode>;
+  seed: StateProp<number>;
   color?: string;
-  params?: ParamItem[] | null;
 }
 
 export type GeneratorPanelProps = DifficultyPickerProps &
   LevelPickerProps & {
-    mode: GeneratorMode;
-    level: number;
-    setMode: React.Dispatch<React.SetStateAction<GeneratorMode>>;
-    setLevel: React.Dispatch<React.SetStateAction<number>>;
     onGenerate: () => void;
   };
+
 export type Tier = DiffTier & {
   sizeLabel?: string;
 };
@@ -45,39 +51,36 @@ export type GroupParam = ParamItem & {
 
 export type GroupedItem = GroupLabel | GroupParam;
 
+// ---------------------------------------------------------------------------
+// GeneratorPanel
+// ---------------------------------------------------------------------------
+
 export default function GeneratorPanel({
   tiers,
-  tierIdx = 0,
+  tier,
   mode,
   level,
-  seed = 0,
-  params,
-  setMode,
-  setLevel,
-  setTier,
-  onChangeSeed,
+  seed,
   onGenerate,
 }: GeneratorPanelProps) {
   const safeTiers = useMemo(() => (Array.isArray(tiers) ? tiers : []), [tiers]);
-  const currentTier = safeTiers[tierIdx];
-  const color = currentTier.color ?? T.accent;
+  const currentTier = safeTiers[tier.value];
+  const color = currentTier?.color ?? T.accent;
 
   const handleChangeTab = (newTab: GeneratorMode) => {
     if (newTab === "Level") {
-      const idx = levelToTierIdx(level, tiers.length);
-      setTier(idx);
+      const idx = levelToTierIdx(level.value, tiers.length);
+      tier.setValue(idx);
     }
-
-    setMode(newTab);
+    mode.setValue(newTab);
   };
 
   return (
     <>
-      {/* TAB BAR */}
+      {/* TAB BAR: Difficulty / Level */}
       <div className="flex border-b" style={{ borderColor: T.border }}>
         {(["Difficulty", "Level"] as const).map((t) => {
-          const active = mode === t;
-
+          const active = mode.value === t;
           return (
             <button
               key={t}
@@ -95,73 +98,51 @@ export default function GeneratorPanel({
         })}
       </div>
 
-      {mode === "Difficulty" && (
-        <DifficultyPicker
-          {...{
-            tiers,
-            tierIdx,
-            setTier,
-            seed,
-            onChangeSeed,
-            onGenerate,
-            params,
-          }}
-        />
+      {mode.value === "Difficulty" && (
+        <DifficultyPicker {...{ tiers, tier, seed, mode }} />
       )}
 
-      {mode === "Level" && (
+      {mode.value === "Level" && (
         <LevelPicker
-          tiers={safeTiers}
-          tierIdx={tierIdx}
-          level={level}
-          color={color}
-          setLevel={setLevel}
-          setTier={setTier}
-          onChangeSeed={onChangeSeed}
+          {...{ tiers: safeTiers, tier, level, color, seed, mode }}
         />
       )}
 
-      <div style={{ marginTop: 14 }}>
+      <div className="p-4">
         <GenerateBtn tier={currentTier} onClick={onGenerate} />
       </div>
     </>
   );
 }
 
-interface GenerateBtnProps {
+// ---------------------------------------------------------------------------
+// GenerateBtn — reusable, diexport untuk dipakai SolverPanelGenerator juga
+// ---------------------------------------------------------------------------
+
+interface GenerateBtnProps extends ButtonType {
   tier?: Partial<Tier>;
-  onClick: () => void;
+  color?: ColorType;
 }
 
-/**
- * Generate Button
- */
-export function GenerateBtn({ tier, onClick }: GenerateBtnProps) {
-  const color = tier?.color ?? T.accent;
+export function GenerateBtn({ tier, color, style, ...rest }: GenerateBtnProps) {
+  const col = tier?.color ?? color ?? T.accent;
 
   return (
     <button
       type="button"
-      onClick={onClick}
+      className="w-full flex gap-2 items-center justify-center p-3 border bg-transparent text-xs font-bold uppercase cursor-pointer transition-all duration-200 mb-1 shadow-sm"
       style={{
-        width: "100%",
-        padding: 11,
         borderRadius: T.radius,
-        border: `1.5px solid ${color}`,
-        background: "transparent",
+        borderColor: col,
         fontFamily: T.font,
-        fontSize: 11,
-        fontWeight: 700,
         letterSpacing: 3,
-        textTransform: "uppercase",
-        cursor: "pointer",
-        color,
-        boxShadow: `0 0 16px ${color}28`,
-        transition: "all .2s",
-        marginBottom: 4,
+        color: col,
+        boxShadow: `0 0 16px ${col}28`,
+        ...style,
       }}
+      {...rest}
     >
-      ▶ Generate
+      <LuSparkles /> Generate
     </button>
   );
 }

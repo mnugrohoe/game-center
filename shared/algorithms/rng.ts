@@ -76,6 +76,20 @@ export function seedFromDiff(tierIdx: number, entropy: number): number {
 }
 
 /**
+ * Generates a non-deterministic, high-entropy 32-bit unsigned integer seed.
+ * Uses cryptographically secure random numbers where available, falling back to Math.random.
+ */
+export function getRandomSeed(): number {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const buffer = new Uint32Array(1);
+    crypto.getRandomValues(buffer);
+    return buffer[0];
+  }
+
+  return (Math.random() * UINT32_MAX_PLUS_1) >>> 0;
+}
+
+/**
  * Weighted random selection.
  * Pass `totalWeight` if you already know it to avoid recomputing it.
  *

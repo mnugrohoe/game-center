@@ -34,10 +34,10 @@ import { ColorType, DiffTier } from "@/shared/types";
 export interface GameShellProps {
   gameName: string;
   logoIcon: React.ReactNode;
-  accentColor: ColorType;
-  tierLabel: DiffTier["name"];
-  tierIcon: DiffTier["icon"];
-  seed: number;
+  accentColor?: ColorType;
+  tierLabel?: DiffTier["name"];
+  tierIcon?: DiffTier["icon"];
+  seed?: number;
   elapsed: number;
   placedCount: number;
   totalCount: number;
@@ -127,65 +127,67 @@ export default function GameShell({
           }}
         >
           {/* Tier badge */}
-          {tierLabel && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "4px 10px",
-                borderRadius: 6,
-                border: `1px solid ${accentColor}55`,
-                background: `${accentColor}18`,
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: 1.5,
-                color: accentColor,
-              }}
-            >
-              {tierIcon && <span>{tierIcon}</span>}
-              <span>{tierLabel}</span>
-            </div>
+          {totalCount > 0 && (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: `1px solid ${accentColor}55`,
+                  background: `${accentColor}18`,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 1.5,
+                  color: accentColor,
+                }}
+              >
+                {tierIcon && <span>{tierIcon}</span>}
+                <span>{tierLabel}</span>
+              </div>
+
+              <Sep />
+
+              {/* Seed */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  border: `1px solid ${T.border}`,
+                  background: T.bg3,
+                  fontSize: 11,
+                  color: T.text2,
+                }}
+              >
+                <span style={{ fontSize: 12 }}>◈</span>
+                <span>{seed}</span>
+              </div>
+
+              <Sep />
+
+              {/* Timer */}
+              <span
+                style={{
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: T.text,
+                  letterSpacing: 2,
+                  fontVariantNumeric: "tabular-nums",
+                  minWidth: 68,
+                }}
+              >
+                {formatTime(elapsed)}
+              </span>
+              <Sep />
+            </>
           )}
-
-          <Sep />
-
-          {/* Seed */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "4px 10px",
-              borderRadius: 6,
-              border: `1px solid ${T.border}`,
-              background: T.bg3,
-              fontSize: 11,
-              color: T.text2,
-            }}
-          >
-            <span style={{ fontSize: 12 }}>◈</span>
-            <span>{seed}</span>
-          </div>
-
-          <Sep />
-
-          {/* Timer */}
-          <span
-            style={{
-              fontSize: 20,
-              fontWeight: 700,
-              color: T.text,
-              letterSpacing: 2,
-              fontVariantNumeric: "tabular-nums",
-              minWidth: 68,
-            }}
-          >
-            {formatTime(elapsed)}
-          </span>
-          <Sep />
           {/* Information panel */}
-          <div className="flex-1 justify-end">{inforPanel}</div>
+          <div className="flex-1 justify-end flex">{inforPanel}</div>
         </div>
 
         {/* Progress — same width as right panel */}

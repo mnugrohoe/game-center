@@ -2,23 +2,14 @@
 
 import { useMemo } from "react";
 import { T } from "./tokens";
-import { PanelBody, SectionLabel, ParamRow, SeedRow } from "./primitive";
+import { PanelBody, SectionLabel, ParamRow } from "./primitive";
 import { GroupedItem, ParamItem } from "./GeneratorPanel";
-import { GeneratorMode } from "@/shared/types";
 
 interface ParamsPanelProps {
-  seed: number;
-  onChangeSeed: React.Dispatch<React.SetStateAction<number>>;
   params?: ParamItem[] | null;
-  mode: GeneratorMode;
 }
 
-export default function ParamsPanel({
-  seed,
-  onChangeSeed,
-  params,
-  mode,
-}: ParamsPanelProps) {
+export default function ParamsPanel({ params }: ParamsPanelProps) {
   const safeParams = useMemo<ParamItem[]>(
     () => (Array.isArray(params) ? params : []),
     [params],
@@ -55,15 +46,6 @@ export default function ParamsPanel({
 
   return (
     <PanelBody>
-      <SectionLabel>Seed</SectionLabel>
-      <SeedRow
-        value={seed}
-        onChange={onChangeSeed as React.Dispatch<React.SetStateAction<number>>}
-        onRandom={() =>
-          onChangeSeed && onChangeSeed(Math.floor(Math.random() * 999999))
-        }
-        disabled={mode === "Level"}
-      />
       <SectionLabel>Params</SectionLabel>
       {grouped.length === 0 ? (
         <div

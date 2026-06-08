@@ -39,12 +39,12 @@ export {
 // Tier Definition
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface RectDiffTier extends DiffTier {
+interface ShikakuDiffTier extends DiffTier {
   minBoard: number;
   maxBoard: number;
 }
 
-export const SHIKAKU_TIERS: RectDiffTier[] = [
+export const SHIKAKU_TIERS: ShikakuDiffTier[] = [
   {
     name: "Beginner",
     icon: "□",
@@ -145,6 +145,8 @@ export const SHIKAKU_TIERS: RectDiffTier[] = [
   },
 ];
 
+export const SHIKAKU_MIN_AREA = 2;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Puzzle Parameters
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,19 +155,6 @@ export interface ShikakuParams {
   width: number;
   height: number;
   rectCount: number;
-
-  /**
-   * Minimum rectangle area allowed.
-   *
-   * Higher:
-   * - easier
-   * - chunkier regions
-   *
-   * Lower:
-   * - tiny regions
-   * - more ambiguity
-   */
-  minArea: number;
 
   /**
    * Rectangle shape quality.
@@ -191,7 +180,7 @@ export interface ShikakuParams {
    */
   anchorAmbiguity: number;
 
-  label: string;
+  tier: ShikakuDiffTier;
   seed: number;
 }
 
@@ -201,13 +190,13 @@ export interface ShikakuParams {
 
 export function generateShikakuParams(
   diffScore: number,
-  seed?: number,
+  seed: number,
 ): ShikakuParams {
-  const puzzleSeed = seed || Date.now();
-  const rng = mkRng(puzzleSeed);
+  const rng = mkRng(seed);
   const idx = clamp(Math.round(diffScore) - 1, 0, SHIKAKU_TIERS.length - 1);
   const tier = SHIKAKU_TIERS[idx];
   const maxIdx = SHIKAKU_TIERS.length - 1;
+  const minArea = SHIKAKU_MIN_AREA;
 
   const getSize = () =>
     clamp(
@@ -229,7 +218,6 @@ export function generateShikakuParams(
 
   const boardArea = boardWidth * boardHeight;
 
-  const minArea = 2;
   const compactness = clamp(0.92 - (0.72 * idx) / maxIdx, 0.1, 1.0);
   const sizeVariance = clamp(0.15 + (0.85 * idx) / maxIdx, 0, 1);
   const anchorAmbiguity = clamp(idx / maxIdx, 0, 1);
@@ -259,12 +247,11 @@ export function generateShikakuParams(
     width: boardWidth,
     height: boardHeight,
     rectCount,
-    minArea,
     compactness: adjustedCompactness,
     sizeVariance,
     anchorAmbiguity,
-    label: SHIKAKU_TIERS[idx].name,
-    seed: puzzleSeed,
+    tier,
+    seed,
   };
 }
 
@@ -272,18 +259,15 @@ export function generateShikakuParams(
 // Convenience Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function getShikakuParamsByLevel(
-  level: number,
-  seed?: number,
-): ShikakuParams {
-  const levelSeed = seed ?? seedFromLevel(level);
+export function getShikakuParamsByLevel(level: number): ShikakuParams {
+  const levelSeed = seedFromLevel(level);
   const diffScore = levelToDiffScore(level);
   return generateShikakuParams(diffScore, levelSeed);
 }
 
 export function getShikakuParamsByTierIdx(
   tierIdx: number,
-  seed?: number,
+  seed: number,
 ): ShikakuParams {
   const diffScore = SHIKAKU_TIERS[tierIdx].diffScore;
   return generateShikakuParams(diffScore, seed);

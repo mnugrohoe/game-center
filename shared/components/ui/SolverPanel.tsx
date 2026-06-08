@@ -1,5 +1,6 @@
-import { ReactNode } from "react";
+"use client";
 
+import { ReactNode, useState, Fragment } from "react";
 import { T } from "./tokens";
 import {
   PanelHeader,
@@ -7,8 +8,15 @@ import {
   Divider,
   StatsGrid,
   ActionBtn,
+  SectionLabel,
+  InputNumberRow,
 } from "./primitive";
 import { ColorType } from "@/shared/types";
+import { GenerateBtn } from "./GeneratorPanel";
+
+// ---------------------------------------------------------------------------
+// SolverPanel — item list + action buttons + stats
+// ---------------------------------------------------------------------------
 
 export interface StatItem {
   label: string;
@@ -28,16 +36,13 @@ interface SolverPanelProps {
   panelLabel?: string;
   placedCount?: number;
   totalCount?: number;
-
   isSolving?: boolean;
-
   stats?: StatItem[];
   actions?: ActionDef[];
-
   children?: ReactNode;
 }
 
-export default function SolverPanel({
+export function SolverPanel({
   panelLabel = "Items",
   placedCount = 0,
   totalCount = 0,
@@ -48,13 +53,13 @@ export default function SolverPanel({
 }: SolverPanelProps) {
   return (
     <>
-      {/* Header */}
+      {/* Header: label + counter */}
       <PanelHeader
         label={panelLabel}
         right={`${placedCount} / ${totalCount}`}
       />
 
-      {/* Item list */}
+      {/* Scrollable item list */}
       <PanelBody style={{ flex: 1 }}>{children}</PanelBody>
 
       <Divider />
@@ -79,16 +84,8 @@ export default function SolverPanel({
               onClick={a.onClick}
             >
               {a.label}
-
               {a.label === "Auto-Solve" && isSolving && (
-                <span
-                  style={{
-                    marginLeft: "auto",
-                    fontSize: 10,
-                  }}
-                >
-                  …
-                </span>
+                <span style={{ marginLeft: "auto", fontSize: 10 }}>…</span>
               )}
             </ActionBtn>
           ))}
@@ -96,7 +93,7 @@ export default function SolverPanel({
 
       <Divider />
 
-      {/* Stats */}
+      {/* Stats grid */}
       {stats.length > 0 && <StatsGrid stats={stats} />}
 
       <Divider />
@@ -104,6 +101,103 @@ export default function SolverPanel({
   );
 }
 
-export function SolverPanelGenerator() {
-  return <Divider />;
+// ---------------------------------------------------------------------------
+// SolverPanelGenerator — form params + generate button
+// ---------------------------------------------------------------------------
+
+export type ParamType = "number" | "string";
+
+export interface BaseParamConfig {
+  key: string;
+  label: string;
+  type: ParamType;
+}
+
+export interface NumberParamConfig extends BaseParamConfig {
+  type: "number";
+  min?: number;
+  max?: number;
+  defaultValue?: number;
+}
+
+export interface StringParamConfig extends BaseParamConfig {
+  type: "string";
+  defaultValue?: string;
+}
+
+export type SolverGeneratorParamConfig = NumberParamConfig | StringParamConfig;
+
+/** Record nilai params saat ini; key = ParamConfig.key */
+export type ParamValues = Record<string, number | string>;
+
+export type SolverPanelGeneratorProps = {
+  color?: ColorType;
+  paramsConfig: SolverGeneratorParamConfig[];
+  onGenerate: (values: ParamValues) => void;
+};
+
+export function SolverPanelGenerator({
+  color,
+  paramsConfig,
+  onGenerate,
+}: SolverPanelGeneratorProps) {
+  // Inisialisasi state dari defaultValue config
+  const [paramValues, setParamValues] = useState<ParamValues>(() => {
+    const init: ParamValues = {};
+    paramsConfig.forEach((p) => {
+      init[p.key] = p.defaultValue ?? (p.type === "number" ? 0 : "");
+    });
+    return init;
+  });
+
+  const handleChange = (key: string, value: number | string) => {
+    setParamValues((prev) => ({ ...prev, [key]: value }));
+  };
+
+  return (
+    <>
+      <PanelBody>
+        {paramsConfig.map((param, idx) => {
+          const isNumber = param.type === "number";
+          const current = paramValues[param.key];
+
+          return (
+            <Fragment key={param.key}>
+              {idx > 0 && (
+                <Divider style={{ marginTop: 20, marginBottom: 10 }} />
+              )}
+
+              <SectionLabel>{param.label}</SectionLabel>
+
+              {isNumber ? (
+                <InputNumberRow
+                  value={current as number}
+                  setValue={(val) => handleChange(param.key, val)}
+                  min={(param as NumberParamConfig).min}
+                  max={(param as NumberParamConfig).max}
+                  color={color}
+                />
+              ) : (
+                <input
+                  type="text"
+                  className="w-full p-2 border rounded text-sm"
+                  style={{
+                    fontFamily: T.font,
+                    borderColor: T.border2,
+                    color: T.text,
+                  }}
+                  value={current as string}
+                  onChange={(e) => handleChange(param.key, e.target.value)}
+                />
+              )}
+            </Fragment>
+          );
+        })}
+      </PanelBody>
+
+      <div className="p-4">
+        <GenerateBtn onClick={() => onGenerate(paramValues)} color={color} />
+      </div>
+    </>
+  );
 }

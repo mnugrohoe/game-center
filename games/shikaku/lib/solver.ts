@@ -1,31 +1,31 @@
 /**
- * Shikaku solver using shared backtracking algorithm
+ * Shikaku solver — optimized
+ *
+ * Key improvements over naive backtracking:
+ *
+ * 1. Incremental candidate filtering
+ *    A `cellToCandidates` index maps every board cell to the list of
+ *    (region, candidateIndex) pairs whose rectangle covers that cell.
+ *    When a rect is placed, every affected candidate in other regions
+ *    is reference-counted as "blocked". When a rect is removed during
+ *    backtracking, those counts are decremented and candidates are
+ *    restored. This eliminates the O(candidates × rect_area) scan that
+ *    the naive solver repeats at every search node.
+ *
+ * 2. Merged MRV + forward checking
+ *    Because `validCount[r]` is maintained incrementally, both the
+ *    minimum-remaining-values heuristic and the forward-check are free
+ *    O(n_regions) scans of that array — no per-candidate overlap test
+ *    is needed during search.
+ *
+ * 3. Candidate pre-sorting by board tightness
+ *    Candidates whose rectangles are pressed against board edges or
+ *    corners have fewer alternative placements. Trying them first
+ *    produces earlier conflicts and prunes the tree more aggressively.
  */
 
 import type { Rect, RectInfo } from "./types";
 
-/**
- * Solves a Shikaku puzzle using backtracking search with:
- *
- * - Candidate pre-generation
- * - Prefix-sum anchor lookup
- * - MRV (Minimum Remaining Values) heuristic
- * - Forward checking
- *
- * The solver searches for a set of non-overlapping rectangles
- * that exactly cover the board while satisfying all anchor clues.
- *
- * @param width Board width in cells.
- * @param height Board height in cells.
- * @param infos Puzzle clues.
- *
- * @returns Complete rectangle solution.
- *
- * @throws Error if:
- * - puzzle input is invalid
- * - a clue has no valid rectangle candidates
- * - no solution exists
- */
 export function solveShikaku(
   width: number,
   height: number,
@@ -34,84 +34,138 @@ export function solveShikaku(
   validateInputs(width, height, infos);
 
   const boardSize = width * height;
+  const n = infos.length;
 
-  // occupied cells
-  const used = new Uint8Array(boardSize);
-
-  // anchor lookup grid
+  // ── Anchor prefix-sum ──────────────────────────────────────────────
   const anchorGrid = new Uint8Array(boardSize);
-
   for (const info of infos) {
     anchorGrid[info.anchor.y * width + info.anchor.x] = 1;
   }
-
-  // prefix sum for anchor counting
   const anchorPS = buildPrefixSum(width, height, anchorGrid);
 
-  const Rects = infos.map((info) => RectsFor(width, height, info, anchorPS));
+  // ── Generate + pre-sort candidates ────────────────────────────────
+  const allCandidates: Rect[][] = infos.map((info) =>
+    rectsFor(width, height, info, anchorPS),
+  );
 
-  for (let i = 0; i < Rects.length; i++) {
-    if (Rects[i].length === 0) {
-      throw new Error(`unsatisfiable region: ${infos[i].id}`);
+  for (let r = 0; r < n; r++) {
+    if (allCandidates[r].length === 0) {
+      throw new Error(`unsatisfiable region: ${infos[r].id}`);
+    }
+    // Tighter placements (near board edges) tried first.
+    allCandidates[r].sort(
+      (a, b) =>
+        candidateTightness(a, width, height) -
+        candidateTightness(b, width, height),
+    );
+  }
+
+  // ── Incremental state ──────────────────────────────────────────────
+  //
+  // cellToCandidates[cell] = list of [regionIdx, candidateIdx] whose
+  // rectangle covers `cell`. Built once; never mutated during search.
+  const cellToCandidates: Array<Array<[number, number]>> = Array.from(
+    { length: boardSize },
+    () => [],
+  );
+
+  for (let r = 0; r < n; r++) {
+    for (let ci = 0; ci < allCandidates[r].length; ci++) {
+      const rect = allCandidates[r][ci];
+      const x2 = rect.x + rect.w;
+      const y2 = rect.y + rect.h;
+      for (let y = rect.y; y < y2; y++) {
+        for (let x = rect.x; x < x2; x++) {
+          cellToCandidates[y * width + x].push([r, ci]);
+        }
+      }
     }
   }
 
-  const assigned = new Uint8Array(infos.length);
+  // candBlocked[r][ci] — number of placed rects that overlap candidate ci
+  // of region r.  Candidate is available iff candBlocked[r][ci] === 0.
+  const candBlocked: Int32Array[] = allCandidates.map(
+    (c) => new Int32Array(c.length),
+  );
 
-  const solution: Rect[] = new Array(infos.length);
+  // validCount[r] — number of still-available candidates for region r.
+  const validCount = new Int32Array(allCandidates.map((c) => c.length));
 
-  function search(depth: number): boolean {
-    if (depth === infos.length) {
-      return true;
-    }
+  const used = new Uint8Array(boardSize);
+  const assigned = new Uint8Array(n);
+  const solution: Rect[] = new Array(n);
 
-    // Dynamic MRV
-    let bestRegion = -1;
-    let bestCount = Number.MAX_SAFE_INTEGER;
-    let bestList: Rect[] = [];
+  // ── Incremental place / remove ────────────────────────────────────
 
-    for (let r = 0; r < infos.length; r++) {
-      if (assigned[r]) continue;
-
-      const valid: Rect[] = [];
-
-      for (const c of Rects[r]) {
-        if (!rectOverlaps(c, used, width)) {
-          valid.push(c);
+  function place(rect: Rect, regionIdx: number): void {
+    const x2 = rect.x + rect.w;
+    const y2 = rect.y + rect.h;
+    for (let y = rect.y; y < y2; y++) {
+      for (let x = rect.x; x < x2; x++) {
+        const cell = y * width + x;
+        used[cell] = 1;
+        for (const [r, ci] of cellToCandidates[cell]) {
+          if (r === regionIdx) continue;
+          if (candBlocked[r][ci] === 0) validCount[r]--;
+          candBlocked[r][ci]++;
         }
       }
+    }
+  }
 
-      if (valid.length === 0) {
-        return false;
+  function remove(rect: Rect, regionIdx: number): void {
+    const x2 = rect.x + rect.w;
+    const y2 = rect.y + rect.h;
+    for (let y = rect.y; y < y2; y++) {
+      for (let x = rect.x; x < x2; x++) {
+        const cell = y * width + x;
+        used[cell] = 0;
+        for (const [r, ci] of cellToCandidates[cell]) {
+          if (r === regionIdx) continue;
+          candBlocked[r][ci]--;
+          if (candBlocked[r][ci] === 0) validCount[r]++;
+        }
       }
+    }
+  }
 
-      if (valid.length < bestCount) {
-        bestCount = valid.length;
+  // ── Search ────────────────────────────────────────────────────────
+
+  function search(depth: number): boolean {
+    if (depth === n) return true;
+
+    // MRV — pick unassigned region with fewest valid candidates.
+    // Forward check is free: validCount[r] === 0 means dead end.
+    let bestRegion = -1;
+    let bestCount = Number.MAX_SAFE_INTEGER;
+
+    for (let r = 0; r < n; r++) {
+      if (assigned[r]) continue;
+      if (validCount[r] === 0) return false;
+      if (validCount[r] < bestCount) {
+        bestCount = validCount[r];
         bestRegion = r;
-        bestList = valid;
-
         if (bestCount === 1) break;
       }
     }
 
     assigned[bestRegion] = 1;
+    const candidates = allCandidates[bestRegion];
+    const blocked = candBlocked[bestRegion];
 
-    for (const choice of bestList) {
-      fillRect(choice, used, width, 1);
+    for (let ci = 0; ci < candidates.length; ci++) {
+      if (blocked[ci] > 0) continue;
 
+      const choice = candidates[ci];
+      place(choice, bestRegion);
       solution[bestRegion] = choice;
 
-      if (forwardCheck(Rects, assigned, used, width)) {
-        if (search(depth + 1)) {
-          return true;
-        }
-      }
+      if (search(depth + 1)) return true;
 
-      fillRect(choice, used, width, 0);
+      remove(choice, bestRegion);
     }
 
     assigned[bestRegion] = 0;
-
     return false;
   }
 
@@ -122,65 +176,129 @@ export function solveShikaku(
   return solution;
 }
 
+// ── Candidate generation ───────────────────────────────────────────
+
 /**
- * Validates puzzle dimensions and clue data before solving.
- *
- * Checks:
- * - board dimensions
- * - duplicate ids
- * - duplicate anchors
- * - area consistency
- * - anchor bounds
- *
- * @throws Error when puzzle data is malformed.
+ * Score: smaller = tighter against board boundary = tried first.
+ * Corner rects score 0; central rects score highest.
  */
+function candidateTightness(rect: Rect, width: number, height: number): number {
+  const mx = Math.min(rect.x, width - (rect.x + rect.w));
+  const my = Math.min(rect.y, height - (rect.y + rect.h));
+  return mx + my;
+}
+
+function rectsFor(
+  width: number,
+  height: number,
+  info: RectInfo,
+  anchorPS: Int32Array,
+): Rect[] {
+  const out: Rect[] = [];
+  const target = info.area;
+
+  for (let rw = 1; rw * rw <= target; rw++) {
+    if (target % rw !== 0) continue;
+    const rh = target / rw;
+    addFactor(width, height, info, anchorPS, rw, rh, out);
+    if (rw !== rh) addFactor(width, height, info, anchorPS, rh, rw, out);
+  }
+
+  return out;
+}
+
+function addFactor(
+  width: number,
+  height: number,
+  info: RectInfo,
+  anchorPS: Int32Array,
+  rw: number,
+  rh: number,
+  out: Rect[],
+): void {
+  if (rw > width || rh > height) return;
+
+  const ax = info.anchor.x;
+  const ay = info.anchor.y;
+
+  const startX = Math.max(0, ax - rw + 1);
+  const endX = Math.min(ax, width - rw);
+  const startY = Math.max(0, ay - rh + 1);
+  const endY = Math.min(ay, height - rh);
+
+  for (let y = startY; y <= endY; y++) {
+    for (let x = startX; x <= endX; x++) {
+      if (countAnchors(anchorPS, width, x, y, rw, rh) !== 1) continue;
+      out.push({ id: info.id, x, y, w: rw, h: rh });
+    }
+  }
+}
+
+// ── Prefix-sum helpers ─────────────────────────────────────────────
+
+function buildPrefixSum(
+  width: number,
+  height: number,
+  grid: Uint8Array,
+): Int32Array {
+  const ps = new Int32Array((width + 1) * (height + 1));
+  for (let y = 1; y <= height; y++) {
+    let row = 0;
+    for (let x = 1; x <= width; x++) {
+      row += grid[(y - 1) * width + (x - 1)];
+      ps[y * (width + 1) + x] = ps[(y - 1) * (width + 1) + x] + row;
+    }
+  }
+  return ps;
+}
+
+function countAnchors(
+  ps: Int32Array,
+  width: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): number {
+  const stride = width + 1;
+  const x2 = x + w;
+  const y2 = y + h;
+  return (
+    ps[y2 * stride + x2] -
+    ps[y * stride + x2] -
+    ps[y2 * stride + x] +
+    ps[y * stride + x]
+  );
+}
+
+// ── Validation ─────────────────────────────────────────────────────
+
 function validateInputs(
   width: number,
   height: number,
   infos: RectInfo[],
 ): void {
-  if (!Number.isInteger(width) || width <= 0) {
-    throw new Error("invalid width");
-  }
-
-  if (!Number.isInteger(height) || height <= 0) {
+  if (!Number.isInteger(width) || width <= 0) throw new Error("invalid width");
+  if (!Number.isInteger(height) || height <= 0)
     throw new Error("invalid height");
-  }
-
-  if (infos.length === 0) {
-    throw new Error("empty puzzle");
-  }
+  if (infos.length === 0) throw new Error("empty puzzle");
 
   const boardArea = width * height;
-
   let totalArea = 0;
-
-  const labels = new Set<string>();
+  const labels = new Set<RectInfo["id"]>();
   const anchors = new Set<string>();
 
   for (const info of infos) {
-    if (!info.id) {
-      throw new Error("missing label");
-    }
-
-    if (labels.has(info.id)) {
-      throw new Error(`duplicate label: ${info.id}`);
-    }
-
+    if (!info.id) throw new Error("missing label");
+    if (labels.has(info.id)) throw new Error(`duplicate label: ${info.id}`);
     labels.add(info.id);
 
-    if (!Number.isInteger(info.area) || info.area <= 0) {
+    if (!Number.isInteger(info.area) || info.area <= 0)
       throw new Error(`invalid area: ${info.id}`);
-    }
-
     totalArea += info.area;
-
-    if (info.area > boardArea) {
-      throw new Error(`area too large: ${info.id}`);
-    }
+    if (info.area > boardArea) throw new Error(`area too large: ${info.id}`);
 
     const { x, y } = info.anchor;
-
     if (
       !Number.isInteger(x) ||
       !Number.isInteger(y) ||
@@ -193,234 +311,10 @@ function validateInputs(
     }
 
     const k = `${x},${y}`;
-
-    if (anchors.has(k)) {
-      throw new Error(`duplicate anchor: ${k}`);
-    }
-
+    if (anchors.has(k)) throw new Error(`duplicate anchor: ${k}`);
     anchors.add(k);
   }
 
-  if (totalArea !== boardArea) {
+  if (totalArea !== boardArea)
     throw new Error(`area mismatch: ${totalArea}/${boardArea}`);
-  }
-}
-
-/**
- * Generates all valid rectangle candidates for a clue.
- *
- * A candidate rectangle:
- * - Has the required area.
- * - Contains the clue anchor.
- * - Contains no other anchors.
- *
- * These candidates form the search space used by
- * the backtracking solver.
- */
-function RectsFor(
-  width: number,
-  height: number,
-  info: RectInfo,
-  anchorPS: Int32Array,
-): Rect[] {
-  const out: Rect[] = [];
-
-  const target = info.area;
-
-  for (let rw = 1; rw * rw <= target; rw++) {
-    if (target % rw !== 0) continue;
-
-    const rh = target / rw;
-
-    addFactor(width, height, info, anchorPS, rw, rh, out);
-
-    if (rw !== rh) {
-      addFactor(width, height, info, anchorPS, rh, rw, out);
-    }
-  }
-
-  return out;
-}
-
-/**
- * Generates candidate rectangles for a specific
- * width/height factor pair.
- *
- * Every generated rectangle:
- * - Covers the clue anchor.
- * - Contains exactly one anchor.
- */
-function addFactor(
-  width: number,
-  height: number,
-  info: RectInfo,
-  anchorPS: Int32Array,
-  rw: number,
-  rh: number,
-  out: Rect[],
-) {
-  if (rw > width || rh > height) {
-    return;
-  }
-
-  const ax = info.anchor.x;
-  const ay = info.anchor.y;
-
-  const startX = Math.max(0, ax - rw + 1);
-  const endX = Math.min(ax, width - rw);
-
-  const startY = Math.max(0, ay - rh + 1);
-  const endY = Math.min(ay, height - rh);
-
-  for (let y = startY; y <= endY; y++) {
-    for (let x = startX; x <= endX; x++) {
-      if (countAnchors(anchorPS, width, x, y, rw, rh) !== 1) {
-        continue;
-      }
-
-      out.push({
-        id: info.id,
-        x,
-        y,
-        w: rw,
-        h: rh,
-      });
-    }
-  }
-}
-
-/**
- * Builds a summed-area table (prefix sum grid)
- * for constant-time anchor counting.
- *
- * Query complexity:
- * - Build: O(width × height)
- * - Rectangle count query: O(1)
- */
-function buildPrefixSum(
-  width: number,
-  height: number,
-  grid: Uint8Array,
-): Int32Array {
-  const ps = new Int32Array((width + 1) * (height + 1));
-
-  for (let y = 1; y <= height; y++) {
-    let row = 0;
-
-    for (let x = 1; x <= width; x++) {
-      row += grid[(y - 1) * width + (x - 1)];
-
-      ps[y * (width + 1) + x] = ps[(y - 1) * (width + 1) + x] + row;
-    }
-  }
-
-  return ps;
-}
-
-/**
- * Counts anchors inside a rectangle using the
- * precomputed prefix-sum table.
- *
- * Complexity: O(1)
- */
-function countAnchors(
-  ps: Int32Array,
-  width: number,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-): number {
-  const stride = width + 1;
-
-  const x2 = x + w;
-  const y2 = y + h;
-
-  return (
-    ps[y2 * stride + x2] -
-    ps[y * stride + x2] -
-    ps[y2 * stride + x] +
-    ps[y * stride + x]
-  );
-}
-
-/**
- * Checks whether a candidate rectangle overlaps
- * any already assigned cells.
- *
- * @returns true if overlap exists.
- */
-function rectOverlaps(rect: Rect, used: Uint8Array, width: number): boolean {
-  const x2 = rect.x + rect.w;
-  const y2 = rect.y + rect.h;
-
-  for (let y = rect.y; y < y2; y++) {
-    let idx = y * width + rect.x;
-
-    for (let x = rect.x; x < x2; x++) {
-      if (used[idx++]) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-/**
- * Marks or clears cells occupied by a rectangle.
- *
- * Used during backtracking assignment and rollback.
- */
-function fillRect(
-  rect: Rect,
-  used: Uint8Array,
-  width: number,
-  value: 0 | 1,
-): void {
-  const x2 = rect.x + rect.w;
-  const y2 = rect.y + rect.h;
-
-  for (let y = rect.y; y < y2; y++) {
-    let idx = y * width + rect.x;
-
-    for (let x = rect.x; x < x2; x++) {
-      used[idx++] = value;
-    }
-  }
-}
-
-/**
- * Performs forward checking after assigning a region.
- *
- * Ensures every unassigned clue still has at least one
- * non-overlapping candidate remaining.
- *
- * This significantly reduces the search tree by
- * pruning impossible branches early.
- */
-function forwardCheck(
-  Rects: Rect[][],
-  assigned: Uint8Array,
-  used: Uint8Array,
-  width: number,
-): boolean {
-  for (let r = 0; r < Rects.length; r++) {
-    if (assigned[r]) continue;
-
-    let possible = false;
-
-    for (const c of Rects[r]) {
-      if (!rectOverlaps(c, used, width)) {
-        possible = true;
-        break;
-      }
-    }
-
-    if (!possible) {
-      return false;
-    }
-  }
-
-  return true;
 }
