@@ -14,7 +14,8 @@ import {
   lerp,
   clamp,
 } from "@/shared/algorithms/difficulty";
-import { mkRng, seedFromDiff, seedFromLevel } from "@/shared/algorithms";
+import { mkRng } from "@/shared/algorithms";
+import { createParamsProvider } from "@/shared/utils/generator";
 
 // Re-export shared helpers so game code can import from one place.
 export {
@@ -33,7 +34,7 @@ export interface KingsDiffTier extends DiffTier {
   maxGrid: number;
 }
 
-export const DIFF_TIERS: KingsDiffTier[] = [
+export const KINGS_TIERS: KingsDiffTier[] = [
   {
     name: "Initiate",
     icon: "✦",
@@ -128,47 +129,30 @@ export const DIFF_TIERS: KingsDiffTier[] = [
 
 // ── Score → puzzle params ─────────────────────────────────────────────────────
 
-export interface PuzzleParams {
+export interface KingsParams {
   N: number; /* grid size                            */
   compactness: number; /* 0–1: 1=round blobs, 0=spiky          */
   sizeVariance: number; /* 0–1: 0=equal, 1=wildly unequal       */
-  label: string;
+  tier: KingsDiffTier;
+  seed: number;
 }
 
-const LABELS = [
-  "Trivial",
-  "Very Easy",
-  "Easy",
-  "Moderate",
-  "Medium",
-  "Tricky",
-  "Hard",
-  "Very Hard",
-  "Brutal",
-];
-
-export function diffScoreToParams(
-  score: number,
-  rng: () => number,
-): PuzzleParams {
+export function generateKingsParams(score: number, seed: number): KingsParams {
+  const rng = mkRng(seed);
   const norm = normalizeScore(score);
-  const baseN = lerp(4, 13, norm);
-  const N = clamp(Math.round(baseN + (rng() - 0.5) * 1.2), 4, 13);
+  const idx = clamp(Math.round(score) - 1, 0, KINGS_TIERS.length - 1);
+  const tier = KINGS_TIERS[idx];
+  const baseN = lerp(5, 15, norm);
+  const N = clamp(Math.round(baseN + (rng() - 0.5) * 1.2), 5, 15);
   const compactness = clamp(lerp(0.9, 0.1, norm), 0.1, 0.95);
   const sizeVariance = clamp(lerp(0.0, 1.0, norm), 0.0, 1.0);
-  const label = LABELS[clamp(Math.round(score) - 1, 0, 8)];
-  return { N, compactness, sizeVariance, label };
+  return { N, compactness, sizeVariance, tier, seed };
 }
 
-export function getParamsByLevel(level: number) {
-  const diffScore = levelToDiffScore(level);
-  const seed = seedFromLevel(level);
-  const rng = mkRng(seed);
-  return diffScoreToParams(diffScore, rng);
-}
-export function getParamsByTierIdx(tierIdx: number) {
-  const diffScore = DIFF_TIERS[tierIdx].diffScore;
-  const seed = seedFromDiff(tierIdx, Date.now());
-  const rng = mkRng(seed);
-  return diffScoreToParams(diffScore, rng);
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Convenience Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+export const kingsParamsGenerator = createParamsProvider(
+  KINGS_TIERS,
+  generateKingsParams,
+);

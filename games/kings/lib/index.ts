@@ -12,8 +12,9 @@ export * from "./difficulty";
 export * from "./generator";
 export * from "./metrics";
 export * from "./solver";
+export * from "./validation";
 
 // Convenience re-exports of shared utils most used by Kings
-export { formatTime, formatScore }       from "@/shared/algorithms/formatting";
-export { getRegionBorders }              from "@/shared/algorithms/grid";
+export { formatTime, formatScore } from "@/shared/algorithms/formatting";
+export { getRegionBorders } from "@/shared/algorithms/grid";
 export { mkRng, seedFromLevel, seedFromDiff } from "@/shared/algorithms/rng";

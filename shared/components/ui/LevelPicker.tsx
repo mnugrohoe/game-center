@@ -1,8 +1,6 @@
 import { clamp, levelToTierIdx, seedFromLevel } from "@/shared/algorithms";
-import { cinzel } from "@/shared/utils/fonts";
-import { FaChevronLeft, FaChevronRight } from "react-icons/fa6";
 import { WavePreview } from "../charts/WavePreview";
-import { SectionLabel, PanelBody } from "./primitive";
+import { SectionLabel, PanelBody, InputNumberRow } from "./primitive";
 import { PickerProps } from "./GeneratorPanel";
 import { T } from "./tokens";
 import { StateProp } from "@/shared/types";
@@ -32,8 +30,8 @@ export default function LevelPicker({
     seed.setValue(lvlSeed);
   };
 
-  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = clamp(Math.max(1, +e.target.value || 1), MIN_LEVEL, MAX_LEVEL);
+  const handleInput = (value: number) => {
+    const val = clamp(Math.max(1, value || 1), MIN_LEVEL, MAX_LEVEL);
     handleChangeLevel(val);
   };
 
@@ -41,36 +39,13 @@ export default function LevelPicker({
     <PanelBody>
       {/* LEVEL CONTROL */}
       <SectionLabel>Level</SectionLabel>
-
-      <div className="flex items-center justify-between gap-2 w-full">
-        <LevelButton
-          onClick={() => handleChangeLevel(Math.max(1, level.value - 1))}
-          color={color}
-        >
-          <FaChevronLeft />
-        </LevelButton>
-
-        <div
-          className={`${cinzel.className} flex justify-center items-center font-extrabold`}
-        >
-          <input
-            type="number"
-            value={level.value}
-            onChange={handleInput}
-            className="text-center text-4xl w-full"
-            style={{
-              color: color ? color : T.accent,
-            }}
-          />
-        </div>
-
-        <LevelButton
-          onClick={() => handleChangeLevel(level.value + 1)}
-          color={color}
-        >
-          <FaChevronRight />
-        </LevelButton>
-      </div>
+      <InputNumberRow
+        value={level.value}
+        setValue={handleInput}
+        min={MIN_LEVEL}
+        max={MAX_LEVEL}
+        color={color}
+      />
 
       {/* TIER (NOW GLOBAL REACTIVE) */}
       <SectionLabel>Tier</SectionLabel>
@@ -97,24 +72,24 @@ export default function LevelPicker({
   );
 }
 
-const LevelButton = ({
-  onClick,
-  children,
-  color,
-}: {
-  onClick: () => void;
-  children: React.ReactNode;
-  color?: string;
-}) => (
-  <button
-    onClick={onClick}
-    className={`${cinzel.className} text-[0.68rem] py-1.5 px-3 border rounded-sm bg-[rgba(201,168,76,0.08)] text-[#c9a84c] cursor-pointer h-full`}
-    style={{
-      color: color ? color : T.accent,
-      background: color ? `${color}20` : `${T.accent}20`,
-      borderColor: color ? color : `${T.accent2}`,
-    }}
-  >
-    {children}
-  </button>
-);
+// const LevelButton = ({
+//   onClick,
+//   children,
+//   color,
+// }: {
+//   onClick: () => void;
+//   children: React.ReactNode;
+//   color?: string;
+// }) => (
+//   <button
+//     onClick={onClick}
+//     className={`${cinzel.className} text-[0.68rem] py-1.5 px-3 border rounded-sm bg-[rgba(201,168,76,0.08)] text-[#c9a84c] cursor-pointer h-full`}
+//     style={{
+//       color: color ? color : T.accent,
+//       background: color ? `${color}20` : `${T.accent}20`,
+//       borderColor: color ? color : `${T.accent2}`,
+//     }}
+//   >
+//     {children}
+//   </button>
+// );

@@ -94,7 +94,15 @@ function hslToLuminance(h: number, s: number, l: number) {
 }
 
 /** Palette used for colouring game regions / pieces */
-export const colorFromIndex = (i: number) => {
+export const colorId = (id: string | number) => {
+  if (id === -1 || id === "-1") {
+    return {
+      bg: "0 0% 0% / 0", // 0% opacity ensures transparency
+      text: "0 0% 0% / 0",
+    };
+  }
+
+  const i = hashString(id);
   const hue = (i * 137.508) % 360;
   const saturation = [65, 75, 85][Math.floor(i / 360) % 3];
   const lightness = [50, 60, 70][Math.floor(i / 120) % 3];
@@ -110,6 +118,20 @@ export const colorFromIndex = (i: number) => {
     text: luminance > 0.179 ? "0 0% 0%" : "0 0% 100%",
   };
 };
+
+/**
+ * Deterministic hash of a string or number, used to derive a stable
+ * color index from a rectangle's id.
+ */
+function hashString(id: string | number): number {
+  if (typeof id === "number") return id;
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
 
 /** Format milliseconds as M:SS.mmm */
 export function formatTime(ms: number) {

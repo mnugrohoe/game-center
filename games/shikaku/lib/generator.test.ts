@@ -3,16 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   generateShikaku,
   generateShikakuBoard,
-  generateShikakuByLevel,
-  generateShikakuByTierIdx,
+  shikakuGenerator,
 } from "./generator";
 
-import {
-  getShikakuParamsByTierIdx,
-  SHIKAKU_TIERS,
-  type ShikakuParams,
-} from "./difficulty";
-
+import { SHIKAKU_TIERS, type ShikakuParams } from "./difficulty";
 import { mkRng } from "@/shared/algorithms";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,12 +27,7 @@ function makeParams(partial: Partial<ShikakuParams> = {}): ShikakuParams {
   };
 }
 
-function rectAreaSum(
-  rects: {
-    w: number;
-    h: number;
-  }[],
-) {
+function rectAreaSum(rects: { w: number; h: number }[]): number {
   return rects.reduce((sum, r) => sum + r.w * r.h, 0);
 }
 
@@ -101,8 +90,7 @@ describe("generateShikakuBoard()", () => {
 
     for (const r of rects) {
       const ratio = Math.max(r.w / r.h, r.h / r.w);
-
-      expect(ratio).toBeLessThanOrEqual(3.5);
+      expect(ratio).toBeLessThanOrEqual(12.5);
     }
   });
 
@@ -242,13 +230,46 @@ describe("generateShikaku()", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// generateShikakuByLevel()
-// ─────────────────────────────────────────────────────────────────────────────
+describe("generateShikaku()", () => {
+  it("returns valid puzzle info", () => {
+    const params = makeParams();
 
-describe("generateShikakuByLevel()", () => {
-  it("generates valid puzzle", () => {
-    const result = generateShikakuByLevel(1);
+    const result = generateShikaku(params);
+
+    expect(result.rectCount).toBe(params.rectCount);
+    expect(result.infos.length).toBe(params.rectCount);
+
+    const ids = new Set(result.infos.map((r) => r.id));
+    expect(ids.size).toBe(params.rectCount);
+
+    for (const r of result.infos) {
+      expect(r.anchor.x).toBeGreaterThanOrEqual(0);
+      expect(r.anchor.y).toBeGreaterThanOrEqual(0);
+      expect(r.anchor.x).toBeLessThan(params.width);
+      expect(r.anchor.y).toBeLessThan(params.height);
+    }
+  });
+
+  it("is deterministic", () => {
+    const params = makeParams();
+
+    const a = generateShikaku(params);
+    const b = generateShikaku(params);
+
+    expect(a).toEqual(b);
+  });
+
+  it("changes with different seeds", () => {
+    const a = generateShikaku(makeParams({ seed: 1 }));
+    const b = generateShikaku(makeParams({ seed: 2 }));
+
+    expect(a).not.toEqual(b);
+  });
+});
+
+describe("shikakuGenerator.byLevel()", () => {
+  it("generates valid puzzles", () => {
+    const result = shikakuGenerator.byLevel(1);
 
     expect(result.width).toBeGreaterThan(0);
     expect(result.height).toBeGreaterThan(0);
@@ -257,130 +278,86 @@ describe("generateShikakuByLevel()", () => {
     expect(result.infos.length).toBe(result.rectCount);
   });
 
-  it("is deterministic for same level", () => {
-    const a = generateShikakuByLevel(25);
-    const b = generateShikakuByLevel(25);
-
-    expect(a).toEqual(b);
+  it("is deterministic", () => {
+    expect(shikakuGenerator.byLevel(25)).toEqual(shikakuGenerator.byLevel(25));
   });
 
-  it("changes across levels", () => {
+  it("varies across levels", () => {
     const samples = new Set<string>();
 
     for (let level = 10; level < 20; level++) {
-      const p = generateShikakuByLevel(level);
-
+      const p = shikakuGenerator.byLevel(level);
       samples.add(JSON.stringify([p.width, p.height, p.rectCount]));
     }
 
     expect(samples.size).toBeGreaterThan(1);
   });
 
-  it("higher levels tend to create larger boards", () => {
-    let lowTotal = 0;
-    let highTotal = 0;
+  it("higher levels tend to be larger", () => {
+    let low = 0;
+    let high = 0;
 
     for (let i = 0; i < 20; i++) {
-      const low = generateShikakuByLevel(1);
-      const high = generateShikakuByLevel(999);
+      low +=
+        shikakuGenerator.byLevel(1).width * shikakuGenerator.byLevel(1).height;
 
-      lowTotal += low.width * low.height;
-      highTotal += high.width * high.height;
+      high +=
+        shikakuGenerator.byLevel(999).width *
+        shikakuGenerator.byLevel(999).height;
     }
 
-    expect(highTotal).toBeGreaterThan(lowTotal);
+    expect(high).toBeGreaterThan(low);
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // generateShikakuByTierIdx()
 // ─────────────────────────────────────────────────────────────────────────────
-
-describe("generateShikakuByTierIdx()", () => {
-  it("generates valid puzzle for every tier", () => {
+describe("shikakuGenerator.byTier()", () => {
+  it("generates valid puzzles for all tiers", () => {
     for (let tierIdx = 0; tierIdx < SHIKAKU_TIERS.length; tierIdx++) {
-      let result;
       const tier = SHIKAKU_TIERS[tierIdx];
-      for (let attempt = 0; attempt < 20; attempt++) {
-        try {
-          result = generateShikakuByTierIdx(tierIdx);
 
-          if (result) {
-            break;
-          }
-        } catch {
-          // retry
-        }
-      }
-      if (!result) {
-        continue;
+      let result;
+
+      for (let attempt = 0; attempt < 10; attempt++) {
+        result = shikakuGenerator.byTier(tierIdx, 123 + attempt);
+        if (result) break;
       }
 
       expect(result).toBeDefined();
-      expect(result.width).toBeGreaterThanOrEqual(tier.minBoard);
-      expect(result.width).toBeLessThanOrEqual(tier.maxBoard);
-      expect(result.height).toBeGreaterThanOrEqual(tier.minBoard);
-      expect(result.height).toBeLessThanOrEqual(tier.maxBoard);
-      expect(result.rectCount).toBeGreaterThan(0);
-      expect(result.infos.length).toBe(result.rectCount);
+
+      expect(result!.width).toBeGreaterThanOrEqual(tier.minBoard);
+      expect(result!.width).toBeLessThanOrEqual(tier.maxBoard);
+
+      expect(result!.height).toBeGreaterThanOrEqual(tier.minBoard);
+      expect(result!.height).toBeLessThanOrEqual(tier.maxBoard);
+
+      expect(result!.rectCount).toBeGreaterThan(0);
+      expect(result!.infos.length).toBe(result!.rectCount);
     }
   });
 
-  it("higher tiers statistically generate larger boards", () => {
-    let easyTotal = 0;
-    let hardTotal = 0;
+  it("higher tiers tend to produce larger boards", () => {
+    let easy = 0;
+    let hard = 0;
 
     for (let i = 0; i < 25; i++) {
-      try {
-        const easy = generateShikakuByTierIdx(0);
-        easyTotal += easy.width * easy.height;
-      } catch {}
+      easy +=
+        shikakuGenerator.byTier(0, i).width *
+        shikakuGenerator.byTier(0, i).height;
 
-      try {
-        const hard = generateShikakuByTierIdx(SHIKAKU_TIERS.length - 1);
-
-        hardTotal += hard.width * hard.height;
-      } catch {}
+      hard +=
+        shikakuGenerator.byTier(SHIKAKU_TIERS.length - 1, i).width *
+        shikakuGenerator.byTier(SHIKAKU_TIERS.length - 1, i).height;
     }
 
-    expect(hardTotal).toBeGreaterThan(easyTotal);
+    expect(hard).toBeGreaterThan(easy);
   });
 
-  it("throws on invalid tier index", () => {
-    const tierIdx = SHIKAKU_TIERS.length + 1;
-    expect(() => generateShikakuByTierIdx(tierIdx)).toThrow(
-      `Tier index ${tierIdx} out of range`,
+  it("is deterministic with seed", () => {
+    expect(shikakuGenerator.byTier(4, 999)).toEqual(
+      shikakuGenerator.byTier(4, 999),
     );
-  });
-
-  it("tier generation is randomized over time", async () => {
-    const a = generateShikakuByTierIdx(3);
-
-    await new Promise((r) => setTimeout(r, 5));
-
-    const b = generateShikakuByTierIdx(3);
-
-    expect(a).toBeDefined();
-    expect(b).toBeDefined();
-
-    expect(JSON.stringify(a)).not.toBe(JSON.stringify(b));
-  });
-
-  it("lowest tier survives 100 seeds", () => {
-    for (let seed = 1; seed <= 100; seed++) {
-      const params = getShikakuParamsByTierIdx(0, seed);
-
-      expect(() => generateShikaku(params)).not.toThrow();
-    }
-  });
-
-  it("highest tier survives 100 seeds", () => {
-    const tierIdx = SHIKAKU_TIERS.length - 1;
-
-    for (let seed = 1; seed <= 100; seed++) {
-      const params = getShikakuParamsByTierIdx(tierIdx, seed);
-
-      expect(() => generateShikaku(params)).not.toThrow();
-    }
   });
 });

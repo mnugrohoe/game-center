@@ -1,44 +1,38 @@
-// games/kings/lib/generator.test.ts
+import { describe, expect, it } from "vitest";
 
-import { describe, expect, it, vi } from "vitest";
-
-import {
-  generateByLevel,
-  generateByTierIdx,
-  generateKingsRegions,
-} from "./generator";
-
-import { DIFF_TIERS, diffScoreToParams, levelToDiffScore } from "./difficulty";
-
-import { mkRng } from "@/shared/algorithms/rng";
+import { kingsGenerator } from "./generator";
+import { KINGS_TIERS, kingsParamsGenerator } from "./difficulty";
 import { getRegionIds, isConnected } from "@/shared/algorithms/grid";
+import type { KingsParams } from "./difficulty";
 
-describe("generateKingsRegions", () => {
-  it("throws for board sizes smaller than 4", () => {
-    const rng = mkRng(123);
+import { generateKingsBoard } from "./generator";
 
-    expect(() => generateKingsRegions(3, rng)).toThrowError(
+const makeParams = (overrides: Partial<KingsParams> = {}): KingsParams => ({
+  N: 6,
+  seed: 123,
+  compactness: 0.5,
+  sizeVariance: 0.5,
+  tier: KINGS_TIERS[0],
+  ...overrides,
+});
+
+describe("generateKingsBoard", () => {
+  it("throws for invalid board size", () => {
+    expect(() => generateKingsBoard(makeParams({ N: 3 }))).toThrow(
       "Kings board size must be at least 4",
     );
   });
 
-  it("returns a valid result for a normal board", () => {
-    const rng = mkRng(12345);
-
-    const result = generateKingsRegions(6, rng);
+  it("generates valid board", () => {
+    const result = generateKingsBoard(makeParams({ N: 6, seed: 12345 }));
 
     expect(result).not.toBeNull();
-
     expect(result!.grid).toHaveLength(6);
     expect(result!.solution.length).toBeGreaterThan(0);
   });
 
-  it("creates a fully filled grid", () => {
-    const rng = mkRng(777);
-
-    const result = generateKingsRegions(7, rng);
-
-    expect(result).not.toBeNull();
+  it("produces fully filled grid", () => {
+    const result = generateKingsBoard(makeParams({ N: 7, seed: 777 }));
 
     for (const row of result!.grid) {
       for (const cell of row) {
@@ -49,57 +43,46 @@ describe("generateKingsRegions", () => {
 
   it("creates exactly N regions", () => {
     const N = 8;
-    const rng = mkRng(888);
 
-    const result = generateKingsRegions(N, rng);
-
-    expect(result).not.toBeNull();
+    const result = generateKingsBoard(makeParams({ N, seed: 888 }));
 
     const regionIds = getRegionIds(result!.grid);
 
-    expect(regionIds.length).toBe(N);
+    expect(regionIds).toHaveLength(N);
   });
 
-  it("ensures every region is connected", () => {
+  it("ensures all regions are connected", () => {
     const N = 7;
-    const rng = mkRng(999);
 
-    const result = generateKingsRegions(N, rng);
+    const result = generateKingsBoard(makeParams({ N, seed: 999 }));
 
-    expect(result).not.toBeNull();
-
-    const grid = result!.grid;
-    const regionIds = getRegionIds(grid);
-
-    for (const reg of regionIds) {
+    for (const reg of getRegionIds(result!.grid)) {
       const cells: [number, number][] = [];
 
       for (let r = 0; r < N; r++) {
         for (let c = 0; c < N; c++) {
-          if (grid[r][c] === reg) {
+          if (result!.grid[r][c] === reg) {
             cells.push([r, c]);
           }
         }
       }
 
       expect(cells.length).toBeGreaterThanOrEqual(2);
-      expect(isConnected(cells, grid, reg)).toBe(true);
+      expect(isConnected(cells, result!.grid, reg)).toBe(true);
     }
   });
 
-  it("returns a valid solution", () => {
+  it("returns valid solution coordinates", () => {
     const N = 6;
-    const rng = mkRng(111);
 
-    const result = generateKingsRegions(N, rng);
+    const result = generateKingsBoard(makeParams({ N, seed: 111 }));
 
-    expect(result).not.toBeNull();
+    expect(result!.solution).toHaveLength(N);
 
-    const { solution } = result!;
+    const rows = new Set(result!.solution.map(([r]) => r));
+    expect(rows.size).toBe(N);
 
-    expect(solution.length).toBeGreaterThan(0);
-
-    for (const [r, c] of solution) {
+    for (const [r, c] of result!.solution) {
       expect(r).toBeGreaterThanOrEqual(0);
       expect(r).toBeLessThan(N);
 
@@ -108,117 +91,78 @@ describe("generateKingsRegions", () => {
     }
   });
 
-  it("is deterministic with the same RNG seed", () => {
-    const rngA = mkRng(5555);
-    const rngB = mkRng(5555);
+  it("is deterministic", () => {
+    const params = makeParams({ seed: 5555 });
 
-    const a = generateKingsRegions(6, rngA);
-    const b = generateKingsRegions(6, rngB);
-
-    expect(a).toEqual(b);
+    expect(generateKingsBoard(params)).toEqual(generateKingsBoard(params));
   });
 
-  it("can generate different layouts with different seeds", () => {
-    const rngA = mkRng(1111);
-    const rngB = mkRng(2222);
-
-    const a = generateKingsRegions(6, rngA);
-    const b = generateKingsRegions(6, rngB);
+  it("varies with different seeds", () => {
+    const a = generateKingsBoard(makeParams({ seed: 1111 }));
+    const b = generateKingsBoard(makeParams({ seed: 2222 }));
 
     expect(a).not.toEqual(b);
   });
 
-  it("works across multiple compactness values", () => {
-    const values = [0.1, 0.5, 0.9];
-
-    for (const compactness of values) {
-      const rng = mkRng(333);
-
-      const result = generateKingsRegions(6, rng, compactness, 0.5);
-
-      expect(result).not.toBeNull();
-    }
+  it.each([0.1, 0.5, 0.9])("supports compactness=%f", (compactness) => {
+    expect(
+      generateKingsBoard(makeParams({ compactness, seed: 333 })),
+    ).not.toBeNull();
   });
 
-  it("works across multiple sizeVariance values", () => {
-    const values = [0.0, 0.5, 1.0];
-
-    for (const sizeVariance of values) {
-      const rng = mkRng(444);
-
-      const result = generateKingsRegions(6, rng, 0.5, sizeVariance);
-
-      expect(result).not.toBeNull();
-    }
+  it.each([0, 0.5, 1])("supports sizeVariance=%f", (sizeVariance) => {
+    expect(
+      generateKingsBoard(makeParams({ sizeVariance, seed: 444 })),
+    ).not.toBeNull();
   });
 });
 
-describe("generateByLevel", () => {
-  it("returns a valid generated puzzle", () => {
+describe("kingsGenerator.byLevel", () => {
+  it("generates valid puzzles for levels", () => {
     for (let level = 1; level <= 20; level++) {
-      const result = generateByLevel(level);
+      const result = kingsGenerator.byLevel(level);
 
       expect(result).not.toBeNull();
-
       expect(result!.grid.length).toBeGreaterThanOrEqual(4);
       expect(result!.solution.length).toBeGreaterThan(0);
     }
   });
 
-  it("is deterministic for the same level", () => {
-    const a = generateByLevel(12);
-    const b = generateByLevel(12);
-
-    expect(a).toEqual(b);
+  it("is deterministic per level", () => {
+    expect(kingsGenerator.byLevel(12)).toEqual(kingsGenerator.byLevel(12));
   });
 
-  it("uses params derived from level difficulty", () => {
+  it("respects level-based params", () => {
     const level = 15;
 
-    const diffScore = levelToDiffScore(level);
-
-    const rng = mkRng(level);
-    const params = diffScoreToParams(diffScore, rng);
-
-    const result = generateByLevel(level);
-
-    expect(result).not.toBeNull();
+    const params = kingsParamsGenerator.byLevel(level);
+    const result = kingsGenerator.byLevel(level);
 
     expect(result!.grid.length).toBe(params.N);
   });
 });
 
-describe("generateByTierIdx", () => {
-  it("returns valid generated puzzles for every tier", () => {
-    vi.spyOn(Date, "now").mockReturnValue(123456);
-
-    for (let tierIdx = 0; tierIdx < DIFF_TIERS.length; tierIdx++) {
-      const result = generateByTierIdx(tierIdx);
+describe("kingsGenerator.byTier", () => {
+  it("generates valid puzzles for all tiers", () => {
+    for (let tier = 0; tier < KINGS_TIERS.length; tier++) {
+      const result = kingsGenerator.byTier(tier, 12345);
 
       expect(result).not.toBeNull();
-
-      expect(result!.grid.length).toBeGreaterThanOrEqual(4);
       expect(result!.solution.length).toBeGreaterThan(0);
     }
   });
 
-  it("is deterministic when Date.now is mocked", () => {
-    vi.spyOn(Date, "now").mockReturnValue(99999);
+  it("is deterministic with same seed", () => {
+    const tier = KINGS_TIERS.length - 1;
 
-    const a = generateByTierIdx(3);
-    const b = generateByTierIdx(3);
-
-    expect(a).toEqual(b);
+    expect(kingsGenerator.byTier(tier, 99999)).toEqual(
+      kingsGenerator.byTier(tier, 99999),
+    );
   });
 
-  it("generates different tiers with potentially different sizes", () => {
-    vi.spyOn(Date, "now").mockReturnValue(55555);
-
-    const easy = generateByTierIdx(0);
-    const hard = generateByTierIdx(3);
-
-    expect(easy).not.toBeNull();
-    expect(hard).not.toBeNull();
+  it("higher tier can produce different layout scale", () => {
+    const easy = kingsGenerator.byTier(0, 55555);
+    const hard = kingsGenerator.byTier(KINGS_TIERS.length - 1, 55555);
 
     expect(hard!.grid.length).toBeGreaterThanOrEqual(easy!.grid.length);
   });

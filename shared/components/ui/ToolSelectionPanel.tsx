@@ -40,6 +40,7 @@ export type SolverConfig = {
 export type ToolSelectionPanelProps = {
   generator: GeneratorConfig;
   solver: SolverConfig;
+  mode: StateProp<ToolSelectionMode>;
 };
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,7 @@ function TabBar({
 export default function ToolSelectionPanel({
   generator,
   solver,
+  mode,
 }: ToolSelectionPanelProps) {
   const [tool, setTool] = useState<ToolSelectionMode>("Generator");
 
@@ -107,7 +109,10 @@ export default function ToolSelectionPanel({
           mode={generator.mode}
           level={generator.level}
           seed={generator.seed}
-          onGenerate={generator.onGenerate}
+          onGenerate={() => {
+            mode.setValue("Generator");
+            generator.onGenerate();
+          }}
         />
       )}
 
@@ -115,7 +120,10 @@ export default function ToolSelectionPanel({
         <SolverPanelGenerator
           color={color}
           paramsConfig={solver.paramsConfig}
-          onGenerate={solver.onGenerate}
+          onGenerate={(values) => {
+            mode.setValue("Solver");
+            solver.onGenerate(values);
+          }}
         />
       )}
     </>

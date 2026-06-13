@@ -8,57 +8,80 @@ import React, {
   useMemo,
 } from "react";
 import useTimer, { UseTimerReturn } from "@/shared/hooks/useTimer";
-import useShikakuBoard, {
-  UseShikakuBoardReturn,
-} from "../hooks/useShikakuBoard";
-import {
-  checkShikakuComplete,
-  SHIKAKU_TIERS,
-  solveShikaku,
-  RectInfo,
-  shikakuGenerator,
-} from "../lib";
+
 import useGenerator, { UseGeneratorReturn } from "@/shared/hooks/useGenerator";
 import useSolver, { UseSolverReturn } from "@/shared/hooks/useSolver";
+import useKingsBoard, { UseKingsBoardReturn } from "../hooks/useKingsBoard";
+import {
+  checkKingsComplete,
+  KINGS_TIERS,
+  kingsGenerator,
+  KingsPuzzle,
+  solveKings,
+  validateRegions,
+} from "../lib";
+import { Coord } from "@/shared/types";
+import { KingBoardCellState } from "../types";
 
 // ---------------------------------------------------------------------------
 // Context shape
 // ---------------------------------------------------------------------------
 
-interface ShikakuContextValue {
-  board: UseShikakuBoardReturn;
+interface KingsContextValue {
+  board: UseKingsBoardReturn;
   generator: UseGeneratorReturn;
   timer: UseTimerReturn;
-  solver: UseSolverReturn<
-    { width: number; height: number; infos: RectInfo[] },
-    ReturnType<typeof solveShikaku>
-  >; // Ekspos solver ke context jika UI membutuhkannya
   isComplete: boolean;
   resetGame: () => void;
   generatePuzzle: (seedOverride?: number) => void;
   loadNextPuzzle: () => void;
   autoSolve: () => void;
   clearBoard: () => void;
+  // FIX: Explicitly type the expected array structure matching what useSolver yields
+  solver: UseSolverReturn<
+    { grid: KingsPuzzle["grid"]; N: KingsPuzzle["params"]["N"] },
+    Coord[]
+  >;
 }
 
-const ShikakuContext = createContext<ShikakuContextValue | null>(null);
+const KingsContext = createContext<KingsContextValue | null>(null);
 
-export function useShikaku() {
-  const context = useContext(ShikakuContext);
-  if (!context)
-    throw new Error("useShikaku must be used within a ShikakuProvider");
+export function useKings() {
+  const context = useContext(KingsContext);
+  if (!context) throw new Error("useKings must be used within a KingsProvider");
   return context;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeEmptyMoves(N: number): KingBoardCellState[][] {
+  return Array.from({ length: N }, () => Array<KingBoardCellState>(N).fill(0));
+}
+
+function levelGenerator(level: number): KingsPuzzle {
+  const puzzle = kingsGenerator.byLevel(level);
+  if (!puzzle)
+    throw new Error(`Failed to generate Kings puzzle at level ${level}`);
+  return puzzle;
+}
+
+function tierGenerator(tierIdx: number, seed: number): KingsPuzzle {
+  const puzzle = kingsGenerator.byTier(tierIdx, seed);
+  if (!puzzle)
+    throw new Error(`Failed to generate Kings puzzle at tier ${tierIdx}`);
+  return puzzle;
 }
 
 // ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
-
-export function ShikakuProvider({ children }: { children: React.ReactNode }) {
+export function KingsProvider({ children }: { children: React.ReactNode }) {
   // ─── Core hooks ────────────────────────────────────────────────────────────
   const timer = useTimer();
   const generator = useGenerator();
-  const board = useShikakuBoard();
+  const board = useKingsBoard();
 
   const {
     puzzle: { setValue: setPuzzle },
@@ -69,26 +92,36 @@ export function ShikakuProvider({ children }: { children: React.ReactNode }) {
 
   const { resetTimer, stopTimer } = timer;
 
-  // ─── Solver Hook Setup ─────────────────────────────────────────────────────
-  const shikakuSolver = useCallback(
-    (puzzleInput: { width: number; height: number; infos: RectInfo[] }) =>
-      solveShikaku(puzzleInput.width, puzzleInput.height, puzzleInput.infos),
-    [],
-  );
-
-  const solver = useSolver(shikakuSolver);
-
   // ─── Completion check ──────────────────────────────────────────────────────
   const isComplete = useMemo(() => {
     if (!board.puzzle.value) return false;
-    return checkShikakuComplete(board.moves.value, board.puzzle.value);
+    const complete = checkKingsComplete(board.moves.value, board.puzzle.value);
+    return complete;
   }, [board.moves.value, board.puzzle.value]);
 
   useEffect(() => {
     if (isComplete) stopTimer();
   }, [isComplete, stopTimer]);
 
-  // ─── Shared reset (board + timer + solver) ──────────────────────────────────
+  // ─── onPuzzle: set puzzle + initialize moves grid ──────────────────────────
+  const onPuzzle = useCallback(
+    (puzzle: KingsPuzzle) => {
+      setPuzzle(puzzle);
+      setMoves(makeEmptyMoves(puzzle.params.N));
+    },
+    [setPuzzle, setMoves],
+  );
+
+  // ─── Solver ────────────────────────────────────────────────────────────────
+  const KingsSolver = useCallback(
+    (puzzle: { grid: KingsPuzzle["grid"]; N: KingsPuzzle["params"]["N"] }) =>
+      solveKings(puzzle.grid, puzzle.N),
+    [],
+  );
+
+  const solver = useSolver(KingsSolver);
+
+  // ─── Shared reset (board + timer) ──────────────────────────────────────────
   const resetGame = useCallback(() => {
     resetBoard();
     resetTimer();
@@ -99,71 +132,77 @@ export function ShikakuProvider({ children }: { children: React.ReactNode }) {
   const generatePuzzle = useCallback(
     (seedOverride?: number) => {
       generator.generate({
-        levelGenerator: shikakuGenerator.byLevel,
-        tierGenerator: shikakuGenerator.byTier,
-        onPuzzle: setPuzzle,
+        levelGenerator,
+        tierGenerator,
+        onPuzzle,
         onReset: resetGame,
-        onError: () => solver.status.setValue("error"), // Set error langsung ke hook solver
+        onError: () => solver.status.setValue("error"),
         seedOverride,
       });
     },
-    [generator, setPuzzle, resetGame, solver.status],
+    [generator, onPuzzle, solver.status, resetGame],
   );
 
   // ─── loadNextPuzzle ────────────────────────────────────────────────────────
   const loadNextPuzzle = useCallback(() => {
     generator.loadNext({
-      levelGenerator: shikakuGenerator.byLevel,
-      tierGenerator: shikakuGenerator.byTier,
-      diffTiers: SHIKAKU_TIERS,
-      onPuzzle: setPuzzle,
+      levelGenerator,
+      tierGenerator,
+      diffTiers: KINGS_TIERS,
+      onPuzzle,
       onReset: resetGame,
       onError: () => solver.status.setValue("error"),
     });
-  }, [generator, setPuzzle, resetGame, solver.status]);
+  }, [generator, onPuzzle, solver.status, resetGame]);
 
   // ─── autoSolve ─────────────────────────────────────────────────────────────
   const autoSolve = useCallback(() => {
-    const activePuzzle = board.puzzle.value ?? customPuzzle;
-    if (!activePuzzle) return;
+    const puzzle = board.puzzle.value ?? customPuzzle;
 
-    const totalArea =
-      activePuzzle.infos?.reduce((acc, i) => acc + i.area, 0) ?? 0;
-    const puzzleArea =
-      (activePuzzle.width as number) * (activePuzzle.height as number);
-
-    if (totalArea !== puzzleArea) {
-      console.warn(
-        "[autoSolve] Rejected: Total clue area does not match board size.",
-      );
-
+    if (!puzzle?.size || !puzzle?.grid) {
+      console.warn("[autoSolve] Rejected: Puzzle or grid is not initialized.");
       solver.status.setValue("error");
       return;
     }
 
-    solver.solve({
-      width: activePuzzle.width as number,
-      height: activePuzzle.height as number,
-      infos: activePuzzle.infos as RectInfo[],
-    });
-  }, [board.puzzle.value, customPuzzle, solver]);
+    const { grid, size, solution } = puzzle;
+
+    if (solution) {
+      solver.solution.setValue(solution);
+      solver.status.setValue("done");
+      solver.toggleVisibility();
+      return;
+    }
+
+    if (generator.isSolver) {
+      const { valid, status } = validateRegions(grid, size);
+
+      if (!valid) {
+        console.error("[autoSolve] Validation failed:", status);
+        solver.status.setValue("error");
+        return;
+      }
+    }
+
+    solver.solve({ grid, N: size });
+  }, [board.puzzle.value, customPuzzle, generator.isSolver, solver]);
 
   // ─── clearBoard ────────────────────────────────────────────────────────────
   const clearBoard = useCallback(() => {
     setMoves([]);
     if (customPuzzle) {
-      setCustomPuzzle({ ...customPuzzle, infos: [] });
+      setCustomPuzzle({ ...customPuzzle, grid: [] });
       resetGame();
     }
   }, [setMoves, customPuzzle, setCustomPuzzle, resetGame]);
 
   // ─── Context value ─────────────────────────────────────────────────────────
-  const contextValue = useMemo<ShikakuContextValue>(
+  const contextValue = useMemo<KingsContextValue>(
     () => ({
       board,
       generator,
       timer,
-      solver, // Kita ikut ekspos solver ini agar komponen UI (seperti tombol auto-solve atau overlay jawaban) bisa membaca `solver.status.value` atau `solver.solution.value`
+      solver,
       isComplete,
       resetGame,
       generatePuzzle,
@@ -186,8 +225,8 @@ export function ShikakuProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ShikakuContext.Provider value={contextValue}>
+    <KingsContext.Provider value={contextValue}>
       {children}
-    </ShikakuContext.Provider>
+    </KingsContext.Provider>
   );
 }

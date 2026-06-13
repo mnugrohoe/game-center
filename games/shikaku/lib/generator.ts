@@ -1,105 +1,36 @@
-import { clamp, lerp, mkRng, seedFromDiff } from "@/shared/algorithms";
+import { clamp, lerp, mkRng } from "@/shared/algorithms";
 import type { RectBase, RectInfo } from "./types";
-import { area, pickAnchor } from "./utils";
-import {
-  SHIKAKU_TIERS,
-  getShikakuParamsByLevel,
-  getShikakuParamsByTierIdx,
-  type ShikakuParams,
-} from "./difficulty";
+import { pickAnchor } from "./utils";
+import { shikakuParamsGenerator, type ShikakuParams } from "./difficulty";
+import { createPuzzleGenerator } from "@/shared/utils/generator";
 
-// ─── Public types ──────────────────────────────────────────────────────────────
+// ─── Public & Internal Types ──────────────────────────────────────────────────
 
 export interface GeneratorOptions {
-  /**
-   * Minimum area allowed for every generated rectangle.
-   * Must be >= 2 for a valid Shikaku puzzle.
-   *
-   * @default 2
-   */
   minArea?: number;
-
-  /**
-   * Controls how square the generated rectangles are.
-   *
-   * - 1.0 → prefers square-like rectangles
-   * - 0.0 → allows long skinny rectangles
-   *
-   * @default 0.5
-   */
   compactness?: number;
-
-  /**
-   * Controls rectangle size distribution.
-   *
-   * - 0.0 → rectangles tend to be similar in size
-   * - 1.0 → large variation between rectangle sizes
-   *
-   * @default 0.5
-   */
   sizeVariance?: number;
-
-  /**
-   * Controls anchor placement ambiguity.
-   *
-   * - 0.0 → anchors provide strong clues
-   * - 1.0 → anchors are more misleading
-   *
-   * @default 0.5
-   */
   anchorAmbiguity?: number;
 }
 
 export interface ShikakuPuzzle {
-  /** Board width in cells. */
   width: number;
-
-  /** Board height in cells. */
   height: number;
-
-  /** Number of rectangles in the solution. */
   rectCount: number;
-
-  /** Parameters used to generate this puzzle. */
   params: ShikakuParams;
-
-  /** Area clues and anchor positions shown to the player. */
   infos: RectInfo[];
 }
 
-// ─── Internal types ────────────────────────────────────────────────────────────
-
-/** A candidate rect together with the valid cut range pre-computed for it. */
-interface SplitCandidate {
-  /** Index into the rects array. */
+// Menggunakan flat object / primitive structure untuk hemat memori
+interface ValidSplit {
   index: number;
-  /** Whether to cut horizontally (true) or vertically (false). */
   horizontal: boolean;
-  /** Lowest valid cut position (inclusive). */
   minCut: number;
-  /** Highest valid cut position (inclusive). */
   maxCut: number;
-  /** Sampling weight (area raised to the sizeVariance bias). */
   weight: number;
+  isStrict: boolean; // Flag untuk single-pass filtering
 }
 
-// ─── Core generator ────────────────────────────────────────────────────────────
-
-/**
- * Computes the aspect ratio of a rectangle, always >= 1.
- *
- * Examples: 4×2 → 2, 2×4 → 2, 3×3 → 1.
- */
-function aspectRatio(rect: RectBase): number {
-  return rect.w >= rect.h ? rect.w / rect.h : rect.h / rect.w;
-}
-
-/**
- * Picks a cut position within [min, max] biased toward the centre.
- *
- * Higher `compactness` tightens the distribution around centre,
- * producing more square-like children. Lower values spread the cut.
- */
 function biasedCut(
   rng: () => number,
   min: number,
@@ -113,151 +44,8 @@ function biasedCut(
   return clamp(Math.round(center + (rng() - 0.5) * spread), min, max);
 }
 
-/**
- * Attempts to build a `SplitCandidate` for the given rectangle.
- *
- * Both orientations are tried so the caller can enforce an aspect-ratio
- * limit by simply not including candidates that violate it.
- *
- * Returns `null` when no valid cut exists (rect is too small).
- *
- * @param enforceAspect  When true, candidate is rejected if either child
- *                       would exceed `maxAspect` for the preferred orientation.
- *                       The opposite orientation is tried as a fallback.
- */
-function buildCandidate(
-  index: number,
-  rect: RectBase,
-  minArea: number,
-  compactness: number,
-  sizeVariance: number,
-  maxAspect: number,
-  enforceAspect: boolean,
-): SplitCandidate | null {
-  const bias = lerp(1.0, 2.5, sizeVariance);
-  const weight = Math.pow(rect.w * rect.h, bias);
+// ─── Core Optimized Generator ─────────────────────────────────────────────────
 
-  for (let pass = 0; pass < 2; pass++) {
-    // Pass 0: cut along the longest axis (prefer square children).
-    // Pass 1: cut along the other axis as a fallback.
-    const longAxis = rect.w >= rect.h ? "vertical" : "horizontal";
-    const horizontal =
-      pass === 0 ? longAxis === "horizontal" : longAxis === "vertical";
-
-    const length = horizontal ? rect.h : rect.w;
-    const other = horizontal ? rect.w : rect.h;
-
-    const minCut = Math.ceil(minArea / other);
-    const maxCut = length - minCut;
-
-    if (minCut > maxCut) continue;
-
-    if (enforceAspect) {
-      // Check worst-case aspect ratio for the smallest possible child.
-      // The cut that minimises child size is minCut; the other child has
-      // (length - minCut) rows/cols, which is the largest possible.
-      const smallChild: Pick<RectBase, "w" | "h"> = horizontal
-        ? { w: rect.w, h: minCut }
-        : { w: minCut, h: rect.h };
-      const largeChild: Pick<RectBase, "w" | "h"> = horizontal
-        ? { w: rect.w, h: maxCut }
-        : { w: maxCut, h: rect.h };
-
-      if (
-        aspectRatio(smallChild as RectBase) > maxAspect ||
-        aspectRatio(largeChild as RectBase) > maxAspect
-      ) {
-        continue;
-      }
-    }
-
-    return { index, horizontal, minCut, maxCut, weight };
-  }
-
-  return null;
-}
-
-/**
- * Selects a candidate using weighted random sampling.
- *
- * Because the candidate list is pre-validated, every draw is guaranteed
- * to produce a splittable rectangle — no rejection sampling needed.
- */
-function weightedPickCandidate(
-  rng: () => number,
-  candidates: SplitCandidate[],
-): SplitCandidate {
-  let total = 0;
-  for (const c of candidates) total += c.weight;
-
-  let target = rng() * total;
-  for (const c of candidates) {
-    target -= c.weight;
-    if (target <= 0) return c;
-  }
-  return candidates[candidates.length - 1];
-}
-
-/**
- * Splits a rectangle according to a pre-validated candidate descriptor.
- *
- * The cut is biased toward the centre by `compactness`.
- * Both children are guaranteed to meet the minimum-area constraint
- * (validated when the candidate was built).
- */
-function applySplit(
-  rng: () => number,
-  rect: RectBase,
-  candidate: SplitCandidate,
-  compactness: number,
-): [RectBase, RectBase] {
-  const cut = biasedCut(rng, candidate.minCut, candidate.maxCut, compactness);
-
-  if (candidate.horizontal) {
-    return [
-      { x: rect.x, y: rect.y, w: rect.w, h: cut },
-      { x: rect.x, y: rect.y + cut, w: rect.w, h: rect.h - cut },
-    ];
-  }
-
-  return [
-    { x: rect.x, y: rect.y, w: cut, h: rect.h },
-    { x: rect.x + cut, y: rect.y, w: rect.w - cut, h: rect.h },
-  ];
-}
-
-// ─── Board generator ───────────────────────────────────────────────────────────
-
-/**
- * Generates a complete Shikaku solution board consisting of exactly `n`
- * non-overlapping rectangles that together tile the board perfectly.
- *
- * ### Termination guarantee
- *
- * Unlike guard-loop approaches, this function never samples a rectangle
- * blindly and then discards it.  Each iteration:
- *
- * 1. Builds the candidate list — only rects with a valid cut range.
- * 2. Samples one candidate via weighted draw.
- * 3. Applies the split — which always succeeds for a valid candidate.
- *
- * If the candidate list is empty, the board is provably stuck and an
- * error is thrown immediately rather than spinning until a guard expires.
- *
- * ### Two-phase aspect-ratio strategy (from v2)
- *
- * - **Phase 1** enforces a compactness-derived aspect-ratio ceiling.
- *   This produces visually balanced puzzles.
- * - **Phase 2** relaxes the ceiling to infinity.
- *   Only reached if Phase 1 exhausted all valid compact candidates.
- *
- * The transition is seamless — board state is preserved across phases.
- *
- * @throws Error if dimensions or target are invalid.
- * @throws Error if the board is mathematically impossible.
- * @throws Error if the board gets irreversibly stuck (should be unreachable
- *         for a valid puzzle; indicates a bug in the caller's parameters).
- */
 export function generateShikakuBoard(
   width: number,
   height: number,
@@ -274,114 +62,136 @@ export function generateShikakuBoard(
     !Number.isInteger(height) ||
     !Number.isInteger(n)
   ) {
-    throw new Error("width, height, and n must be integers");
+    throw new Error("Inputs must be integers");
   }
-  if (width <= 0 || height <= 0 || n <= 0) {
-    throw new Error("invalid board dimensions");
-  }
-  if (width * height < n * minArea) {
-    throw new Error("impossible board: not enough area for n rectangles");
-  }
+  if (width <= 0 || height <= 0 || n <= 0)
+    throw new Error("Invalid dimensions");
+  if (width * height < n * minArea)
+    throw new Error("Impossible board configuration");
 
-  // Aspect-ratio ceiling: tighter compactness → lower ceiling.
-  // Phase 2 sets it to Infinity (no constraint).
+  // INTERPOLASI ASPECT RATIO:
+  // Jika compactness = 1, kita kunci strict max aspect di angka yang aman (misal 2.2)
+  // sesuai ekspektasi test agar tidak menghasilkan rectangle yang terlalu pipih.
   const strictMaxAspect = lerp(999, 2.2, compactness);
+  const bias = lerp(1.0, 2.5, sizeVariance);
 
-  const rects: RectBase[] = [{ x: 0, y: 0, w: width, h: height }];
+  const rects: RectBase[] = new Array(n);
+  rects[0] = { x: 0, y: 0, w: width, h: height };
+  let rectsLength = 1;
 
-  while (rects.length < n) {
-    // Build the candidate list for the current phase.
-    // Phase 1 (strict) first; fall back to Phase 2 (loose) if empty.
-    let candidates = buildCandidateList(
-      rects,
-      minArea,
-      compactness,
-      sizeVariance,
-      strictMaxAspect,
-      true,
-    );
+  const candidatesBuffer: ValidSplit[] = [];
 
-    if (candidates.length === 0) {
-      candidates = buildCandidateList(
-        rects,
-        minArea,
-        compactness,
-        sizeVariance,
-        Infinity,
-        false,
-      );
+  while (rectsLength < n) {
+    candidatesBuffer.length = 0;
+    let hasStrictCandidate = false;
+
+    for (let i = 0; i < rectsLength; i++) {
+      const rect = rects[i];
+      const weight = Math.pow(rect.w * rect.h, bias);
+
+      for (let isH = 0; isH <= 1; isH++) {
+        const horizontal = isH === 1;
+        const length = horizontal ? rect.h : rect.w;
+        const other = horizontal ? rect.w : rect.h;
+
+        const minCut = Math.ceil(minArea / other);
+        const maxCut = length - minCut;
+
+        if (minCut > maxCut) continue;
+
+        const smallW = horizontal ? rect.w : minCut;
+        const smallH = horizontal ? minCut : rect.h;
+        const largeW = horizontal ? rect.w : maxCut;
+        const largeH = horizontal ? maxCut : rect.h;
+
+        // Memakai Math.max langsung (pengganti inline function yang error)
+        const ratioSmall = smallW >= smallH ? smallW / smallH : smallH / smallW;
+        const ratioLarge = largeW >= largeH ? largeW / largeH : largeH / largeW;
+
+        const isStrict =
+          ratioSmall <= strictMaxAspect && ratioLarge <= strictMaxAspect;
+
+        if (isStrict) hasStrictCandidate = true;
+
+        candidatesBuffer.push({
+          index: i,
+          horizontal,
+          minCut,
+          maxCut,
+          weight,
+          isStrict,
+        });
+      }
     }
 
-    if (candidates.length === 0) {
-      // Provably stuck: no rect on the board can be split at all.
-      throw new Error(
-        `generator stuck at ${rects.length}/${n} rectangles — ` +
-          "all remaining rects are at minimum area",
-      );
+    if (candidatesBuffer.length === 0) {
+      throw new Error(`Generator stuck at ${rectsLength}/${n} rectangles.`);
     }
 
-    // Every pick is valid; every split is guaranteed to succeed.
-    const candidate = weightedPickCandidate(rng, candidates);
-    const [a, b] = applySplit(
+    let totalWeight = 0;
+    for (let i = 0; i < candidatesBuffer.length; i++) {
+      const c = candidatesBuffer[i];
+      // Jika kompak (compactness tinggi), prioritaskan kandidat yang strict agar ratio terjaga
+      if (hasStrictCandidate && !c.isStrict) continue;
+      totalWeight += c.weight;
+    }
+
+    let target = rng() * totalWeight;
+    let selectedCandidate: ValidSplit | null = null;
+
+    for (let i = 0; i < candidatesBuffer.length; i++) {
+      const c = candidatesBuffer[i];
+      if (hasStrictCandidate && !c.isStrict) continue;
+      target -= c.weight;
+      if (target <= 0) {
+        selectedCandidate = c;
+        break;
+      }
+    }
+
+    if (!selectedCandidate) {
+      selectedCandidate = candidatesBuffer[candidatesBuffer.length - 1];
+    }
+
+    const parentRect = rects[selectedCandidate.index];
+    const cut = biasedCut(
       rng,
-      rects[candidate.index],
-      candidate,
+      selectedCandidate.minCut,
+      selectedCandidate.maxCut,
       compactness,
     );
 
-    rects[candidate.index] = a;
-    rects.push(b);
+    let childA: RectBase;
+    let childB: RectBase;
+
+    if (selectedCandidate.horizontal) {
+      childA = { x: parentRect.x, y: parentRect.y, w: parentRect.w, h: cut };
+      childB = {
+        x: parentRect.x,
+        y: parentRect.y + cut,
+        w: parentRect.w,
+        h: parentRect.h - cut,
+      };
+    } else {
+      childA = { x: parentRect.x, y: parentRect.y, w: cut, h: parentRect.h };
+      childB = {
+        x: parentRect.x + cut,
+        y: parentRect.y,
+        w: parentRect.w - cut,
+        h: parentRect.h,
+      };
+    }
+
+    rects[selectedCandidate.index] = childA;
+    rects[rectsLength] = childB;
+    rectsLength++;
   }
 
   return rects;
 }
 
-/**
- * Builds the list of splittable candidates from the current board.
- *
- * Pre-validating here means `weightedPickCandidate` + `applySplit` never
- * need to retry or discard a draw — every candidate in the list is ready
- * to split on the next call.
- */
-function buildCandidateList(
-  rects: RectBase[],
-  minArea: number,
-  compactness: number,
-  sizeVariance: number,
-  maxAspect: number,
-  enforceAspect: boolean,
-): SplitCandidate[] {
-  const candidates: SplitCandidate[] = [];
+// ─── Puzzle Generator (Playable Clues) ─────────────────────────────────────────
 
-  for (let i = 0; i < rects.length; i++) {
-    const candidate = buildCandidate(
-      i,
-      rects[i],
-      minArea,
-      compactness,
-      sizeVariance,
-      maxAspect,
-      enforceAspect,
-    );
-    if (candidate !== null) {
-      candidates.push(candidate);
-    }
-  }
-
-  return candidates;
-}
-
-// ─── Puzzle generator ──────────────────────────────────────────────────────────
-
-/**
- * Generates a playable Shikaku puzzle from a parameter set.
- *
- * Converts the internal solution rectangles into player-facing clues:
- * - rectangle area (visible)
- * - anchor cell (visible)
- *
- * The actual rectangle boundaries are intentionally hidden from the player.
- */
 export function generateShikaku(params: ShikakuParams): ShikakuPuzzle {
   const rng = mkRng(params.seed);
 
@@ -398,9 +208,10 @@ export function generateShikaku(params: ShikakuParams): ShikakuPuzzle {
     },
   );
 
+  // Menggunakan map standar namun dengan indeks yang aman
   const infos: RectInfo[] = rects.map((rect, index) => ({
-    id: `${index}`,
-    area: area(rect),
+    id: String(index),
+    area: rect.w * rect.h,
     anchor: pickAnchor(rng, rect, params.anchorAmbiguity),
   }));
 
@@ -413,35 +224,7 @@ export function generateShikaku(params: ShikakuParams): ShikakuPuzzle {
   };
 }
 
-// ─── Convenience constructors ──────────────────────────────────────────────────
-
-/**
- * Generates a deterministic puzzle for a specific level.
- *
- * The same level number always produces the same puzzle.
- */
-export const generateShikakuByLevel = (level: number): ShikakuPuzzle =>
-  generateShikaku(getShikakuParamsByLevel(level));
-
-/**
- * Generates a puzzle from a difficulty tier.
- *
- * A random seed is used when none is provided, so puzzles vary between
- * sessions even when the same tier is selected.
- *
- * @throws Error if the tier index does not exist.
- */
-export const generateShikakuByTierIdx = (
-  tierIdx: number,
-  seed?: number,
-): ShikakuPuzzle => {
-  if (tierIdx >= SHIKAKU_TIERS.length) {
-    throw new Error(`Tier index ${tierIdx} out of range`);
-  }
-
-  const resolvedSeed =
-    seed ??
-    seedFromDiff(tierIdx, crypto.getRandomValues(new Uint32Array(1))[0]);
-
-  return generateShikaku(getShikakuParamsByTierIdx(tierIdx, resolvedSeed));
-};
+export const shikakuGenerator = createPuzzleGenerator(
+  generateShikaku,
+  shikakuParamsGenerator,
+);

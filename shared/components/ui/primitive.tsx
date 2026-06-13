@@ -22,10 +22,11 @@
 import { useState } from "react";
 import { T } from "./tokens";
 import ProgressRing from "./ProgressRing";
-import { ColorType, StyleType } from "@/shared/types";
+import { ButtonType, ColorType, StyleType } from "@/shared/types";
 import { StatItem } from "./SolverPanel";
 import { FaMinus, FaPlus } from "react-icons/fa6";
 import { clamp } from "@/shared/algorithms";
+import { cn } from "@/shared/utils/cn";
 
 export { ProgressRing };
 
@@ -162,7 +163,7 @@ export function InputNumberRow({
         <button
           type="button"
           onClick={decrement}
-          className="flex h-8 w-8 items-center justify-center rounded"
+          className="flex h-8 w-8 items-center justify-center rounded cursor-pointer"
           style={{ color: color }}
         >
           <FaMinus size={12} />
@@ -174,13 +175,13 @@ export function InputNumberRow({
           onBlur={handleBlur}
           onChange={(e) => setValue(Number(e.target.value) || min)}
           className="w-16 bg-transparent text-center border-none outline-none ring-0 focus:outline-none focus:ring-0 focus:border-none flex-1"
-          style={{ color: `${color}88` }}
+          style={{ color: `${color}` }}
         />
 
         <button
           type="button"
           onClick={increment}
-          className="flex h-8 w-8 items-center justify-center rounded"
+          className="flex h-8 w-8 items-center justify-center rounded cursor-pointer"
           style={{ color: color }}
         >
           <FaPlus size={12} />
@@ -295,6 +296,7 @@ export function ActionBtn({
   disabled,
   onClick,
   children,
+  className,
   style,
 }: {
   color: ColorType;
@@ -303,7 +305,7 @@ export function ActionBtn({
   onClick: () => void;
   children: React.ReactNode;
   style?: StyleType;
-}) {
+} & ButtonType) {
   const [hov, setHov] = useState(false);
   return (
     <button
@@ -311,23 +313,19 @@ export function ActionBtn({
       disabled={disabled}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
+      className={cn(
+        "w-full px-3 py-2.5 font-bold uppercase flex items-center gap-2 transition-all duration-150",
+        className,
+      )}
       style={{
-        width: "100%",
-        padding: "9px 12px",
         borderRadius: T.radius,
         border: `1px solid ${color}55`,
         background: hov && !disabled ? `${color}18` : "transparent",
         fontFamily: T.font,
         fontSize: 10,
-        fontWeight: 700,
         letterSpacing: 2,
-        textTransform: "uppercase",
         cursor: disabled ? "not-allowed" : "pointer",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
         color: disabled ? T.text3 : color,
-        transition: "all .15s",
         opacity: disabled ? 0.45 : 1,
         ...style,
       }}
@@ -405,11 +403,40 @@ function ParamsBar({
   max?: number;
   isInput?: boolean;
 }) {
-  const progress = clamp(
-    isInput ? (max === min ? 0 : (value - min) / (max - min)) : pct,
-    0,
-    1,
-  );
+  const logMin = min <= 0 ? 1 : min;
+  const logMax = max <= 0 ? 100 : max;
+
+  let progress = pct;
+
+  if (isInput) {
+    if (logMax === logMin) {
+      progress = 0;
+    } else {
+      const currentVal = value <= 0 ? logMin : value;
+      progress =
+        (Math.log(currentVal) - Math.log(logMin)) /
+        (Math.log(logMax) - Math.log(logMin));
+    }
+  }
+
+  const clampedProgress = clamp(progress, 0, 1);
+
+  // 2. Fungsi untuk mengubah posisi linear slider (0 - 1) kembali ke nilai logaritmik asli
+  const handleSliderChange = (linearValue: number) => {
+    if (!setValue) return;
+
+    // Rumus logaritmik: e^(ln(min) + linearValue * (ln(max) - ln(min)))
+    const logValue = Math.exp(
+      Math.log(logMin) + linearValue * (Math.log(logMax) - Math.log(logMin)),
+    );
+
+    // Jika min asli adalah 0 dan nilainya mendekati logMin, kita kembalikan ke 0 agar user bisa slide sampai mentok kiri
+    if (min === 0 && Math.round(logValue) === logMin) {
+      setValue(0);
+    } else {
+      setValue(Math.round(logValue)); // Gunakan Math.round atau sesuaikan presisi desimal jika butuh float
+    }
+  };
 
   return (
     <div
@@ -420,7 +447,7 @@ function ParamsBar({
       <div
         className="h-full rounded-sm "
         style={{
-          width: `${progress * 100}%`,
+          width: `${clampedProgress * 100}%`,
           background: color,
           transition: "width .3s",
         }}
@@ -429,10 +456,11 @@ function ParamsBar({
       {isInput && (
         <input
           type="range"
-          min={min}
-          max={max}
-          value={value}
-          onChange={(e) => setValue?.(Number(e.target.value))}
+          min={0}
+          max={1}
+          step={0.001} // Semakin kecil step-nya, geseran slider logaritmiknya semakin halus
+          value={clampedProgress}
+          onChange={(e) => handleSliderChange(Number(e.target.value))}
           className="slider absolute left-0 top-1/2 w-full -translate-y-1/2 cursor-pointer appearance-none bg-transparent h-4"
         />
       )}

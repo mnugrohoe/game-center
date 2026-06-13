@@ -1,6 +1,7 @@
-// shared/components/ui/ResponsiveGrid.tsx
+// shared/components/ui/Grid.tsx
 "use client";
 
+import { SizeType } from "@/shared/theme/logo";
 import { DivType } from "@/shared/types";
 import { cn } from "@/shared/utils/cn";
 import React, {
@@ -11,9 +12,9 @@ import React, {
   useState,
 } from "react";
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Core types
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type CellCoord = { x: number; y: number };
 export type CellKey = `${number}-${number}`;
@@ -36,9 +37,9 @@ export type CellRenderProps = {
   cellSize: number;
 };
 
-// ─────────────────────────────────────────────
-// SwapPathOverlay types & component
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SwapPathOverlay
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type PathSegment = {
   /** Ordered "x-y" keys. */
@@ -58,9 +59,7 @@ interface SwapPathOverlayProps {
 
 /**
  * SVG overlay that draws pipe/snake paths on top of the grid.
- * Place this as a sibling to `ResponsiveGrid` inside a `relative` container.
- *
- * The path uses cubic-bezier curves at corners so it looks smooth/rounded.
+ * Place this as a sibling to `GridWrapper` inside a `relative` container.
  */
 export function SwapPathOverlay({
   segments,
@@ -70,31 +69,23 @@ export function SwapPathOverlay({
 }: SwapPathOverlayProps) {
   const step = cellSize + gap;
 
-  // Convert "x-y" key → SVG centre pixel coordinate.
   const centre = (key: string): [number, number] => {
     const [x, y] = key.split("-").map(Number);
     return [x * step + cellSize / 2, y * step + cellSize / 2];
   };
 
-  const r = (cellSize * thickness) / 2; // stroke radius
+  const r = (cellSize * thickness) / 2;
   const strokeW = cellSize * thickness;
 
-  /**
-   * Build a smooth SVG path string for an ordered list of cell keys.
-   *
-   * Strategy: straight lines between centres, then round the corners
-   * using quadratic bezier arcs.
-   */
   function buildSvgPath(order: string[]): string {
     if (order.length === 0) return "";
     if (order.length === 1) {
-      // Single cell → tiny circle via arc trick.
       const [cx, cy] = centre(order[0]);
       return `M ${cx - r} ${cy} a ${r} ${r} 0 1 0 ${r * 2} 0 a ${r} ${r} 0 1 0 -${r * 2} 0`;
     }
 
     const pts = order.map(centre);
-    const cornerR = Math.min(r * 1.2, step * 0.4); // bend radius
+    const cornerR = Math.min(r * 1.2, step * 0.4);
 
     let d = `M ${pts[0][0]} ${pts[0][1]}`;
 
@@ -104,24 +95,20 @@ export function SwapPathOverlay({
       const next = i < pts.length - 1 ? pts[i + 1] : null;
 
       if (!next) {
-        // Last segment — straight line to end.
         d += ` L ${curr[0]} ${curr[1]}`;
         continue;
       }
 
-      // Direction into and out of this corner.
       const dx1 = curr[0] - prev[0];
       const dy1 = curr[1] - prev[1];
       const dx2 = next[0] - curr[0];
       const dy2 = next[1] - curr[1];
 
-      // If direction doesn't change (straight) — just pass through.
       if (dx1 === dx2 && dy1 === dy2) {
         d += ` L ${curr[0]} ${curr[1]}`;
         continue;
       }
 
-      // Normalise.
       const len1 = Math.hypot(dx1, dy1);
       const len2 = Math.hypot(dx2, dy2);
       const ux1 = dx1 / len1;
@@ -129,10 +116,8 @@ export function SwapPathOverlay({
       const ux2 = dx2 / len2;
       const uy2 = dy2 / len2;
 
-      // Entry point (cornerR before the corner).
       const ex = curr[0] - ux1 * cornerR;
       const ey = curr[1] - uy1 * cornerR;
-      // Exit point (cornerR after the corner).
       const fx = curr[0] + ux2 * cornerR;
       const fy = curr[1] + uy2 * cornerR;
 
@@ -142,8 +127,6 @@ export function SwapPathOverlay({
     return d;
   }
 
-  // Total SVG size matches grid.
-  // We can't know grid size here, so we use 100% / the overlay is absolute.
   return (
     <svg
       style={{
@@ -156,7 +139,6 @@ export function SwapPathOverlay({
       {segments.map((seg, i) => {
         if (seg.order.length === 0) return null;
         const d = buildSvgPath(seg.order);
-
         return (
           <g key={i}>
             <path
@@ -190,13 +172,19 @@ export function SwapPathOverlay({
   );
 }
 
-// ─────────────────────────────────────────────
-// ResponsiveGrid
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// GridWrapper
+// ─────────────────────────────────────────────────────────────────────────────
 
-export interface ResponsiveGridProps extends Omit<
+export interface GridWrapperProps extends Omit<
   DivType,
-  "onDrag" | "onDragStart" | "onDragEnd" | "onPointerDown"
+  | "onDrag"
+  | "onDragStart"
+  | "onDragEnd"
+  | "onPointerDown"
+  | "onClick"
+  | "onDoubleClick"
+  | "onContextMenu"
 > {
   rows: number;
   cols: number;
@@ -206,12 +194,28 @@ export interface ResponsiveGridProps extends Omit<
   disabled?: boolean;
   className?: string;
   renderCell: (props: CellRenderProps) => ReactNode;
+  /** Fired on pointer-down with the cell coordinate. */
   onPointerDown?: (coord: CellCoord) => void;
+  /** Fired when drag begins and on every subsequent pointer-move. */
   onDragStart?: (payload: DragPayload) => void;
   onDrag?: (payload: DragPayload) => void;
+  /** Fired on pointer-up after a drag. */
   onDragEnd?: (payload: DragPayload) => void;
+  /** Click (no-drag) on a cell. */
+  onClick?: (coord: CellCoord) => void;
+  /** Double-click on a cell. */
+  onDoubleClick?: (coord: CellCoord) => void;
+  /** Right-click / context-menu on a cell. */
+  onContextMenu?: (e: React.MouseEvent, coord: CellCoord) => void;
 }
 
+/**
+ * Generic grid container that handles pointer capture, drag tracking, and
+ * cell-coordinate resolution. Renders an N×M grid via `renderCell`.
+ *
+ * All interaction callbacks receive `CellCoord` so callers never need to
+ * compute grid positions from raw pixel events.
+ */
 export function GridWrapper({
   rows,
   cols,
@@ -225,14 +229,20 @@ export function GridWrapper({
   onDragStart,
   onDrag,
   onDragEnd,
+  onClick,
+  onDoubleClick,
+  onContextMenu,
   style,
   ...rest
-}: ResponsiveGridProps) {
+}: GridWrapperProps) {
   const gridContainerRef = useRef<HTMLDivElement>(null);
   const [dragStartCoord, setDragStartCoord] = useState<CellCoord | null>(null);
   const [dragCurrentCoord, setDragCurrentCoord] = useState<CellCoord | null>(
     null,
   );
+
+  /** Whether the pointer has moved at least one cell since pointer-down. */
+  const hasDraggedRef = useRef(false);
 
   const cellCoords = useMemo<CellCoord[]>(() => {
     const coords: CellCoord[] = [];
@@ -264,17 +274,14 @@ export function GridWrapper({
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (
-        disabled ||
-        (e.target as HTMLElement).tagName === "INPUT" ||
-        (e.target as HTMLElement).tagName === "TEXTAREA"
-      )
-        return;
-
+      if (disabled) return;
+      // Only handle primary button (left-click / touch).
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       const coord = getCellCoordFromPointer(e.clientX, e.clientY);
       if (!coord) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
+      hasDraggedRef.current = false;
       setDragStartCoord(coord);
       setDragCurrentCoord(coord);
       onPointerDown?.(coord);
@@ -294,12 +301,17 @@ export function GridWrapper({
       if (disabled || !dragStartCoord) return;
       const coord = getCellCoordFromPointer(e.clientX, e.clientY);
       if (!coord) return;
+      // Only fire drag callback when the cell actually changes.
+      if (coord.x === dragCurrentCoord?.x && coord.y === dragCurrentCoord?.y)
+        return;
+      hasDraggedRef.current = true;
       setDragCurrentCoord(coord);
       onDrag?.(createDragPayload(dragStartCoord, coord));
     },
     [
       disabled,
       dragStartCoord,
+      dragCurrentCoord,
       getCellCoordFromPointer,
       createDragPayload,
       onDrag,
@@ -315,11 +327,42 @@ export function GridWrapper({
         return;
       }
       e.preventDefault();
-      onDragEnd?.(createDragPayload(dragStartCoord, dragCurrentCoord));
+      const payload = createDragPayload(dragStartCoord, dragCurrentCoord);
+      onDragEnd?.(payload);
       setDragStartCoord(null);
       setDragCurrentCoord(null);
     },
     [disabled, dragStartCoord, dragCurrentCoord, createDragPayload, onDragEnd],
+  );
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (disabled || hasDraggedRef.current) return;
+      const coord = getCellCoordFromPointer(e.clientX, e.clientY);
+      if (!coord) return;
+      onClick?.(coord);
+    },
+    [disabled, getCellCoordFromPointer, onClick],
+  );
+
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (disabled) return;
+      const coord = getCellCoordFromPointer(e.clientX, e.clientY);
+      if (!coord) return;
+      onDoubleClick?.(coord);
+    },
+    [disabled, getCellCoordFromPointer, onDoubleClick],
+  );
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (disabled) return;
+      const coord = getCellCoordFromPointer(e.clientX, e.clientY);
+      if (!coord) return;
+      onContextMenu?.(e, coord);
+    },
+    [disabled, getCellCoordFromPointer, onContextMenu],
   );
 
   return (
@@ -338,6 +381,9 @@ export function GridWrapper({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+      onContextMenu={handleContextMenu}
       {...rest}
     >
       {cellCoords.map((coord) => (
@@ -349,15 +395,19 @@ export function GridWrapper({
   );
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // GridCell
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface GridCellProps
   extends Omit<DivType, "children">, CellRenderProps {
   children?: ReactNode;
 }
 
+/**
+ * A single grid cell `<div>`. Sets `data-col` / `data-row` and enforces
+ * `box-sizing: border-box` so borders never break the layout.
+ */
 export function GridCell({ coord, cellSize, style, ...rest }: GridCellProps) {
   return (
     <div
@@ -374,9 +424,9 @@ export function GridCell({ coord, cellSize, style, ...rest }: GridCellProps) {
   );
 }
 
-// ─────────────────────────────────────────────
-// GridInputCell — stores coord + value
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// GridInputCell
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface GridInputCellProps
   extends
@@ -384,15 +434,12 @@ export interface GridInputCellProps
     CellRenderProps {
   /** Typed change handler that receives coord + new string value together. */
   onCellChange?: (coord: CellCoord, value: string) => void;
-  /** Fall-through if you still need the raw event. */
   onChange?: React.ChangeEventHandler<HTMLInputElement>;
 }
 
 /**
- * An `<input>` cell that exposes `onCellChange(coord, value)` so you never
- * need to separately track which cell was edited.
- *
- * `data-col` / `data-row` are set for DOM queries. `value` is controlled.
+ * A controlled `<input>` cell. Exposes `onCellChange(coord, value)` so
+ * callers never need to separately track which cell was edited.
  */
 export function GridInputCell({
   coord,
@@ -421,5 +468,27 @@ export function GridInputCell({
         ...style,
       }}
     />
+  );
+}
+
+export type LogoIconProps = {
+  size?: SizeType;
+};
+
+export function EmptyGrid({
+  logo: Logo,
+  name,
+}: {
+  logo: React.ComponentType<LogoIconProps>;
+  name?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 w-full h-full">
+      <Logo size="2xl" />
+      {name && <p className="text-lg uppercase">{name} Games</p>}
+      <p className="text-xs tracking-widest opacity-50 text-center">
+        Select a difficulty and generate a puzzle
+      </p>
+    </div>
   );
 }

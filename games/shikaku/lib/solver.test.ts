@@ -1,190 +1,139 @@
-import { describe, expect, it } from "vitest";
+import { describe, it, expect } from "vitest";
 import { solveShikaku } from "./solver";
+import { generateShikakuBoard } from "./generator"; // Meminjam generator murni agar data 5x5 valid mutlak
+import { mkRng } from "@/shared/algorithms";
 import type { RectInfo } from "./types";
-import { ShikakuPuzzle } from "./generator";
-import { checkShikakuAnchor } from "./validation";
 
 describe("solveShikaku", () => {
-  it("solves a simple 2x2 puzzle", () => {
+  // ─── SCENARIO 1: SUCCESSFUL SOLVING ─────────────────────────────────────────
+
+  it("should successfully solve a simple 2x2 grid", () => {
     const infos: RectInfo[] = [
-      {
-        id: "A",
-        area: 2,
-        anchor: { x: 0, y: 0 },
-      },
-      {
-        id: "B",
-        area: 2,
-        anchor: { x: 0, y: 1 },
-      },
+      { id: "A", area: 2, anchor: { x: 0, y: 0 } },
+      { id: "B", area: 2, anchor: { x: 1, y: 1 } },
     ];
 
-    const solution = solveShikaku(2, 2, infos);
+    const result = solveShikaku(2, 2, infos);
+    expect(result).toHaveLength(2);
 
-    expect(solution).toHaveLength(2);
+    const rectA = result.find((r) => r.id === "A");
+    const rectB = result.find((r) => r.id === "B");
 
-    const totalArea = solution.reduce((s, r) => s + r.w * r.h, 0);
-    expect(totalArea).toBe(4);
+    expect(rectA).toEqual({ id: "A", x: 0, y: 0, w: 1, h: 2 });
+    expect(rectB).toEqual({ id: "B", x: 1, y: 0, w: 1, h: 2 });
+  });
 
-    for (const rect of solution) {
-      expect(
-        checkShikakuAnchor(rect, {
-          width: 2,
-          height: 2,
-          infos,
-        } as ShikakuPuzzle),
-      ).toBe(true);
+  it("should successfully solve a standard 5x5 grid puzzle", () => {
+    // Membuat board 5x5 yang dijamin valid menggunakan mesin generatormu sendiri
+    const rng = mkRng(125);
+    const validBoard = generateShikakuBoard(5, 5, 5, rng, {
+      minArea: 2,
+      compactness: 0.3,
+    });
+
+    // Transformasikan hasil board generator menjadi RectInfo input solver
+    const infos: RectInfo[] = validBoard.map((rect, idx) => ({
+      id: String(idx),
+      area: rect.w * rect.h,
+      // Letakkan anchor aman di pojok kiri atas masing-masing partisi rectangle
+      anchor: { x: rect.x, y: rect.y },
+    }));
+
+    const result = solveShikaku(5, 5, infos);
+    expect(result).toHaveLength(5);
+
+    // Validasi cakupan spasial grid
+    const gridCheck = new Uint8Array(5 * 5);
+    for (const rect of result) {
+      const sourceInfo = infos.find((i) => i.id === rect.id);
+      expect(rect.w * rect.h).toBe(sourceInfo?.area);
+
+      for (let y = rect.y; y < rect.y + rect.h; y++) {
+        for (let x = rect.x; x < rect.x + rect.w; x++) {
+          const cell = y * 5 + x;
+          expect(gridCheck[cell]).toBe(0); // Tidak boleh tumpang tindih
+          gridCheck[cell] = 1;
+        }
+      }
     }
+    expect(gridCheck.every((cell) => cell === 1)).toBe(true);
   });
 
-  it("solves a 3x2 puzzle", () => {
-    const infos: RectInfo[] = [
-      {
-        id: "A",
-        area: 4,
-        anchor: { x: 0, y: 0 },
-      },
-      {
-        id: "B",
-        area: 2,
-        anchor: { x: 2, y: 0 },
-      },
-    ];
+  // ─── SCENARIO 2: INPUT VALIDATION (ERROR HANDLING) ──────────────────────────
 
-    const solution = solveShikaku(3, 2, infos);
+  describe("Input Validations", () => {
+    it("should throw error if width or height is invalid", () => {
+      const validInfos: RectInfo[] = [
+        { id: "A", area: 4, anchor: { x: 0, y: 0 } },
+      ];
+      expect(() => solveShikaku(0, 4, validInfos)).toThrow("invalid width");
+      expect(() => solveShikaku(4, -1, validInfos)).toThrow("invalid height");
+    });
 
-    expect(solution).toHaveLength(2);
+    it("should throw error if puzzle infos array is empty", () => {
+      expect(() => solveShikaku(4, 4, [])).toThrow("empty puzzle");
+    });
 
-    expect(solution.reduce((s, r) => s + r.w * r.h, 0)).toBe(6);
+    it("should throw error if total areas do not match the board dimensions", () => {
+      const infos: RectInfo[] = [
+        { id: "A", area: 5, anchor: { x: 0, y: 0 } },
+        { id: "B", area: 5, anchor: { x: 2, y: 2 } },
+      ];
+      expect(() => solveShikaku(3, 3, infos)).toThrow("area mismatch: 10/9");
+    });
+
+    it("should throw error if an anchor is out of bounds", () => {
+      const infos: RectInfo[] = [{ id: "A", area: 4, anchor: { x: 2, y: 0 } }];
+      expect(() => solveShikaku(2, 2, infos)).toThrow(
+        "anchor out of bounds: A",
+      );
+    });
+
+    it("should throw error if there are duplicate labels or anchors", () => {
+      const duplicateLabels: RectInfo[] = [
+        { id: "A", area: 2, anchor: { x: 0, y: 0 } },
+        { id: "A", area: 2, anchor: { x: 0, y: 1 } },
+      ];
+      expect(() => solveShikaku(2, 2, duplicateLabels)).toThrow(
+        "duplicate label: A",
+      );
+
+      const duplicateAnchors: RectInfo[] = [
+        { id: "A", area: 2, anchor: { x: 0, y: 0 } },
+        { id: "B", area: 2, anchor: { x: 0, y: 0 } },
+      ];
+      expect(() => solveShikaku(2, 2, duplicateAnchors)).toThrow(
+        "duplicate anchor: 0,0",
+      );
+    });
   });
 
-  it("throws when no solution exists", () => {
-    const infos: RectInfo[] = [
-      {
-        id: "A",
-        area: 1,
-        anchor: { x: 0, y: 0 },
-      },
-      {
-        id: "B",
-        area: 3,
-        anchor: { x: 0, y: 0 },
-      },
-    ];
+  // ─── SCENARIO 3: UNSATISFIABLE PUZZLES ──────────────────────────────────────
 
-    expect(() => solveShikaku(2, 2, infos)).toThrow();
-  });
-});
+  describe("Unsatisfiable Puzzles", () => {
+    it("should throw error if a region cannot formulate any valid candidate geometry", () => {
+      const infos: RectInfo[] = [{ id: "A", area: 4, anchor: { x: 0, y: 0 } }];
+      expect(() => solveShikaku(1, 3, infos)).toThrow("area too large: A");
+    });
 
-describe("solveShikaku validation", () => {
-  it("rejects invalid width", () => {
-    expect(() => solveShikaku(0, 2, [])).toThrow("invalid width");
-  });
+    it("should throw error if a single region has zero candidates due to nearby anchors", () => {
+      const infos: RectInfo[] = [
+        { id: "A", area: 3, anchor: { x: 0, y: 0 } },
+        { id: "B", area: 1, anchor: { x: 1, y: 0 } },
+      ];
+      expect(() => solveShikaku(2, 2, infos)).toThrow(
+        "unsatisfiable region: A",
+      );
+    });
 
-  it("rejects invalid height", () => {
-    expect(() => solveShikaku(2, 0, [])).toThrow("invalid height");
-  });
-
-  it("rejects empty puzzle", () => {
-    expect(() => solveShikaku(2, 2, [])).toThrow("empty puzzle");
-  });
-
-  it("rejects duplicate labels", () => {
-    const infos: RectInfo[] = [
-      {
-        id: "A",
-        area: 2,
-        anchor: { x: 0, y: 0 },
-      },
-      {
-        id: "A",
-        area: 2,
-        anchor: { x: 1, y: 1 },
-      },
-    ];
-
-    expect(() => solveShikaku(2, 2, infos)).toThrow("duplicate label: A");
-  });
-
-  it("rejects duplicate anchors", () => {
-    const infos: RectInfo[] = [
-      {
-        id: "A",
-        area: 2,
-        anchor: { x: 0, y: 0 },
-      },
-      {
-        id: "B",
-        area: 2,
-        anchor: { x: 0, y: 0 },
-      },
-    ];
-
-    expect(() => solveShikaku(2, 2, infos)).toThrow("duplicate anchor: 0,0");
-  });
-
-  it("rejects area mismatch", () => {
-    const infos: RectInfo[] = [
-      {
-        id: "A",
-        area: 1,
-        anchor: { x: 0, y: 0 },
-      },
-    ];
-
-    expect(() => solveShikaku(2, 2, infos)).toThrow("area mismatch: 1/4");
-  });
-
-  it("rejects anchor out of bounds", () => {
-    const infos: RectInfo[] = [
-      {
-        id: "A",
-        area: 4,
-        anchor: { x: 5, y: 0 },
-      },
-    ];
-
-    expect(() => solveShikaku(2, 2, infos)).toThrow("anchor out of bounds: A");
-  });
-
-  it("rejects invalid area", () => {
-    const infos: RectInfo[] = [
-      {
-        id: "A",
-        area: 0,
-        anchor: { x: 0, y: 0 },
-      },
-    ];
-
-    expect(() => solveShikaku(1, 1, infos)).toThrow("invalid area: A");
-  });
-
-  it("rejects area larger than board", () => {
-    const infos: RectInfo[] = [
-      {
-        id: "A",
-        area: 10,
-        anchor: { x: 0, y: 0 },
-      },
-    ];
-
-    expect(() => solveShikaku(2, 2, infos)).toThrow("area too large: A");
-  });
-
-  it("throws unsatisfiable region when clue has no candidates", () => {
-    const infos: RectInfo[] = [
-      {
-        id: "A",
-        area: 4,
-        anchor: { x: 0, y: 0 },
-      },
-      {
-        id: "B",
-        area: 5,
-        anchor: { x: 1, y: 1 },
-      },
-    ];
-
-    expect(() => solveShikaku(3, 3, infos)).toThrow(/unsatisfiable region/);
+    it("should throw error if backtracking finishes without finding a valid solution", () => {
+      const infos: RectInfo[] = [
+        { id: "A", area: 2, anchor: { x: 0, y: 0 } },
+        { id: "B", area: 2, anchor: { x: 0, y: 1 } },
+      ];
+      // Solver mendeteksi kebuntuan awal pada struktur allCandidates karena
+      // salah satu region terhimpit/terkurung oleh posisi anchor lainnya.
+      expect(() => solveShikaku(1, 4, infos)).toThrow("unsatisfiable region");
+    });
   });
 });

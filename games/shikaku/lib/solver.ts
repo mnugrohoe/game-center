@@ -1,31 +1,16 @@
-/**
- * Shikaku solver — optimized
- *
- * Key improvements over naive backtracking:
- *
- * 1. Incremental candidate filtering
- *    A `cellToCandidates` index maps every board cell to the list of
- *    (region, candidateIndex) pairs whose rectangle covers that cell.
- *    When a rect is placed, every affected candidate in other regions
- *    is reference-counted as "blocked". When a rect is removed during
- *    backtracking, those counts are decremented and candidates are
- *    restored. This eliminates the O(candidates × rect_area) scan that
- *    the naive solver repeats at every search node.
- *
- * 2. Merged MRV + forward checking
- *    Because `validCount[r]` is maintained incrementally, both the
- *    minimum-remaining-values heuristic and the forward-check are free
- *    O(n_regions) scans of that array — no per-candidate overlap test
- *    is needed during search.
- *
- * 3. Candidate pre-sorting by board tightness
- *    Candidates whose rectangles are pressed against board edges or
- *    corners have fewer alternative placements. Trying them first
- *    produces earlier conflicts and prunes the tree more aggressively.
- */
-
 import type { Rect, RectInfo } from "./types";
 
+// ─── Public Functions ─────────────────────────────────────────────────────────
+
+/**
+ * Solves a Shikaku puzzle using an optimized backtracking algorithm with
+ * Forward Checking, Minimum Remaining Values (MRV) heuristic, and smart candidate pre-sorting.
+ *
+ * @param width - The width of the board in cells.
+ * @param height - The height of the board in cells.
+ * @param infos - An array of region definitions containing area clues and anchor points.
+ * @returns An array of {@link Rect} objects representing the final solution layout.
+ */
 export function solveShikaku(
   width: number,
   height: number,
@@ -36,14 +21,20 @@ export function solveShikaku(
   const boardSize = width * height;
   const n = infos.length;
 
-  // ── Anchor prefix-sum ──────────────────────────────────────────────
+  /** * A flat 1D grid representing anchor locations.
+   * A value of 1 indicates the cell contains an anchor point.
+   */
   const anchorGrid = new Uint8Array(boardSize);
   for (const info of infos) {
     anchorGrid[info.anchor.y * width + info.anchor.x] = 1;
   }
+
+  /** 2D Prefix-Sum table computed from the anchor grid for O(1) density evaluation. */
   const anchorPS = buildPrefixSum(width, height, anchorGrid);
 
-  // ── Generate + pre-sort candidates ────────────────────────────────
+  /** * A two-dimensional array holding all potential geometric {@link Rect} candidates
+   * grouped by their region index `r`.
+   */
   const allCandidates: Rect[][] = infos.map((info) =>
     rectsFor(width, height, info, anchorPS),
   );
@@ -52,7 +43,10 @@ export function solveShikaku(
     if (allCandidates[r].length === 0) {
       throw new Error(`unsatisfiable region: ${infos[r].id}`);
     }
-    // Tighter placements (near board edges) tried first.
+
+    /** * Pre-sort candidates: Tighter placements (e.g., pressed against board edges
+     * or corners) are prioritized to induce earlier conflicts and prune the search tree.
+     */
     allCandidates[r].sort(
       (a, b) =>
         candidateTightness(a, width, height) -
@@ -60,10 +54,11 @@ export function solveShikaku(
     );
   }
 
-  // ── Incremental state ──────────────────────────────────────────────
-  //
-  // cellToCandidates[cell] = list of [regionIdx, candidateIdx] whose
-  // rectangle covers `cell`. Built once; never mutated during search.
+  /**
+   * Static look-up index mapping each cell ID to an array of tuple pairs `[regionIdx, candidateIdx]`.
+   * Identifies exactly which candidate rectangles overlap this specific cell coordinate.
+   * Built once before the search phase and remains immutable throughout backtracking.
+   */
   const cellToCandidates: Array<Array<[number, number]>> = Array.from(
     { length: boardSize },
     () => [],
@@ -82,21 +77,34 @@ export function solveShikaku(
     }
   }
 
-  // candBlocked[r][ci] — number of placed rects that overlap candidate ci
-  // of region r.  Candidate is available iff candBlocked[r][ci] === 0.
+  /**
+   * Reference tracker matrix. `candBlocked[r][ci]` stores the number of currently placed
+   * rectangles overlapping candidate `ci` of region `r`.
+   * A candidate is available if and only if its block count is exactly 0.
+   */
   const candBlocked: Int32Array[] = allCandidates.map(
     (c) => new Int32Array(c.length),
   );
 
-  // validCount[r] — number of still-available candidates for region r.
+  /** Fast lookup tracking the total number of still-available candidates for region `r`. */
   const validCount = new Int32Array(allCandidates.map((c) => c.length));
 
+  /** State array indicating whether a cell is occupied (`1`) or vacant (`0`). */
   const used = new Uint8Array(boardSize);
+
+  /** State array indicating whether a region `r` has been assigned a rectangle solution. */
   const assigned = new Uint8Array(n);
+
+  /** Temporary array storing the current path solution. */
   const solution: Rect[] = new Array(n);
 
-  // ── Incremental place / remove ────────────────────────────────────
-
+  /**
+   * Commits a rectangle candidate to the board state and incrementally marks
+   * overlapping candidates in other regions as blocked.
+   *
+   * @param rect - The candidate rectangle to place.
+   * @param regionIdx - The index of the region owning the candidate.
+   */
   function place(rect: Rect, regionIdx: number): void {
     const x2 = rect.x + rect.w;
     const y2 = rect.y + rect.h;
@@ -113,6 +121,13 @@ export function solveShikaku(
     }
   }
 
+  /**
+   * Removes a rectangle candidate from the board state during backtracking and
+   * decrements block references, restoring candidates that are no longer obstructed.
+   *
+   * @param rect - The candidate rectangle to retract.
+   * @param regionIdx - The index of the region owning the candidate.
+   */
   function remove(rect: Rect, regionIdx: number): void {
     const x2 = rect.x + rect.w;
     const y2 = rect.y + rect.h;
@@ -129,16 +144,20 @@ export function solveShikaku(
     }
   }
 
-  // ── Search ────────────────────────────────────────────────────────
-
+  /**
+   * Recursive backtracking search loop utilizing the Minimum Remaining Values (MRV) heuristic.
+   *
+   * @param depth - The current layer depth of the search tree (number of placed regions).
+   * @returns `true` if a configuration solves the board layout completely, otherwise `false`.
+   */
   function search(depth: number): boolean {
     if (depth === n) return true;
 
-    // MRV — pick unassigned region with fewest valid candidates.
-    // Forward check is free: validCount[r] === 0 means dead end.
     let bestRegion = -1;
     let bestCount = Number.MAX_SAFE_INTEGER;
 
+    // MRV Selection Strategy: Pick unassigned region with fewest valid candidates.
+    // Forward Checking comes free: validCount[r] === 0 flags an immediate dead end.
     for (let r = 0; r < n; r++) {
       if (assigned[r]) continue;
       if (validCount[r] === 0) return false;
@@ -176,11 +195,12 @@ export function solveShikaku(
   return solution;
 }
 
-// ── Candidate generation ───────────────────────────────────────────
+// ─── Internal Helper Functions ───────────────────────────────────────────────
 
 /**
- * Score: smaller = tighter against board boundary = tried first.
- * Corner rects score 0; central rects score highest.
+ * Calculates the positional tightness score of a candidate rectangle against board edges.
+ * Corner rectangles yield `0`, while centered rectangles yield higher cumulative values.
+ * * @internal
  */
 function candidateTightness(rect: Rect, width: number, height: number): number {
   const mx = Math.min(rect.x, width - (rect.x + rect.w));
@@ -188,6 +208,11 @@ function candidateTightness(rect: Rect, width: number, height: number): number {
   return mx + my;
 }
 
+/**
+ * Finds all geometrically valid rectangles matching a region's target area that encompass
+ * its designated anchor point without capturing alternative anchors.
+ * * @internal
+ */
 function rectsFor(
   width: number,
   height: number,
@@ -207,6 +232,11 @@ function rectsFor(
   return out;
 }
 
+/**
+ * Validates and slides a specific bounding matrix configuration across possible sub-coordinates
+ * to collect safe layout allocations.
+ * * @internal
+ */
 function addFactor(
   width: number,
   height: number,
@@ -234,8 +264,11 @@ function addFactor(
   }
 }
 
-// ── Prefix-sum helpers ─────────────────────────────────────────────
-
+/**
+ * Generates a 2D Summed-Area Table (Prefix-Sum) structure for rapid area query lookups.
+ * * @internal
+ * @returns An `Int32Array` representing the prefix sum coordinates.
+ */
 function buildPrefixSum(
   width: number,
   height: number,
@@ -252,6 +285,11 @@ function buildPrefixSum(
   return ps;
 }
 
+/**
+ * Uses the Summed-Area Table to compute the count of anchor points within a rectangular region boundary in O(1) time.
+ * * @internal
+ * @returns The total number of anchors caught inside the query rectangle bounds.
+ */
 function countAnchors(
   ps: Int32Array,
   width: number,
@@ -271,8 +309,12 @@ function countAnchors(
   );
 }
 
-// ── Validation ─────────────────────────────────────────────────────
-
+/**
+ * Comprehensive assertion layer verifying consistency, dimensions, overlapping properties,
+ * label naming integrity, and capacity bounds of inputs.
+ * * @throws {@link Error} If bounds, identifiers, or area limits are violated.
+ * @internal
+ */
 function validateInputs(
   width: number,
   height: number,

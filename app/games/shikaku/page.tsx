@@ -12,18 +12,17 @@ import {
   SolverGeneratorParamConfig,
   ParamValues,
 } from "@/shared/components/ui/SolverPanel";
-import { SolveBanner, SolverStatusBar } from "@/shared/components/ui/primitive";
-import { T, formatTime } from "@/shared/components/ui/tokens";
+import { SolverStatusBar } from "@/shared/components/ui/primitive";
+import { colorId, formatTime } from "@/shared/components/ui/tokens";
 
 // shikaku-specific
 import ShikakuGrid from "@/games/shikaku/components/ShikakuGrid";
 
 import LogoIcon from "@/games/shikaku/components/Logo";
 import {
-  getShikakuParamsByLevel,
-  getShikakuParamsByTierIdx,
   SHIKAKU_TIERS,
   ShikakuParams,
+  shikakuParamsGenerator,
 } from "@/games/shikaku/lib/difficulty";
 import ParamsPanel from "@/shared/components/ui/ParamsPanel";
 import ToolSelectionPanel from "@/shared/components/ui/ToolSelectionPanel";
@@ -31,7 +30,7 @@ import {
   ShikakuProvider,
   useShikaku,
 } from "@/games/shikaku/components/ShikakuContext";
-import { GeneratorMode } from "@/shared/types";
+import { ColorType, GeneratorMode } from "@/shared/types";
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,14 +39,14 @@ function ShikakuGame() {
 
   const params: ShikakuParams | null = useMemo(() => {
     if (ctx.generator.mode.value === ("Difficulty" as GeneratorMode)) {
-      return getShikakuParamsByTierIdx(
+      return shikakuParamsGenerator.byTier(
         ctx.generator.tierIdx.value,
         ctx.generator.seed.value,
       );
     }
 
     if (ctx.generator.mode.value === "Level") {
-      return getShikakuParamsByLevel(ctx.generator.level.value);
+      return shikakuParamsGenerator.byLevel(ctx.generator.level.value);
     }
 
     return null;
@@ -103,46 +102,48 @@ function ShikakuGame() {
   }, [params]);
 
   const validRect = useMemo(() => {
-    return ctx.board.userRects.value.filter((r) => r.validAnchor);
-  }, [ctx.board.userRects]);
+    return ctx.board.moves.value.filter((r) => r.validAnchor);
+  }, [ctx.board.moves]);
 
   // ── Solver panel actions ──────────────────────────────────────────────────
   const solverActions: ActionDef[] = [
     {
       label: "Auto-Solve",
       icon: "⚙",
-      color: "#a78bfa",
+      color: `hsla(${colorId(0).bg})` as ColorType,
       disabled:
-        (!ctx.board.puzzle.value && !ctx.board.solverPuzzle.value) ||
-        ctx.solverStatus.value === "solving" ||
-        ctx.board.isSolutionVisible.value ||
-        (ctx.board.solverSolution.value
-          ? ctx.board.solverSolution?.value.length > 1
+        (!ctx.board.puzzle.value &&
+          !ctx.board.customPuzzle.value &&
+          !ctx.solver.solution.value) ||
+        ctx.solver.status.value === "solving" ||
+        ctx.solver.isVisible.value ||
+        (ctx.solver.solution.value
+          ? ctx.solver.solution?.value.length > 1
           : false),
       onClick: ctx.autoSolve,
     },
     {
-      label: ctx.board.isSolutionVisible.value
-        ? "Hide Solution"
-        : "Show Solution",
-      icon: ctx.board.isSolutionVisible.value ? "◎" : "◉",
-      color: T.cyan,
-      disabled: !ctx.board.solverSolution.value,
-      hidden: !ctx.board.solverSolution.value,
-      onClick: ctx.toggleSolution,
+      label: ctx.solver.isVisible.value ? "Hide Solution" : "Show Solution",
+      icon: ctx.solver.isVisible.value ? "◎" : "◉",
+      color: `hsla(${colorId(1).bg})` as ColorType,
+      disabled: !ctx.solver.solution.value,
+      hidden: !ctx.solver.solution.value,
+      onClick: ctx.solver.toggleVisibility,
     },
     {
       label: "Clear Board",
       icon: "⌫",
-      color: T.text2,
-      disabled: !ctx.board.puzzle.value && !ctx.board.solverPuzzle,
+      color: `hsla(${colorId(2).bg})` as ColorType,
+      disabled: !ctx.board.puzzle.value && !ctx.board.customPuzzle,
       onClick: ctx.clearBoard,
     },
     {
       label: "New Puzzle",
       icon: "↺",
-      color: T.green,
-      disabled: !ctx.board.puzzle.value && !ctx.board.solverPuzzle,
+      color: `hsla(${colorId(3).bg})` as ColorType,
+      disabled:
+        (!ctx.board.puzzle.value && !ctx.board.customPuzzle) ||
+        ctx.generator.isSolver,
       onClick: ctx.loadNextPuzzle,
     },
   ];
@@ -195,13 +196,16 @@ function ShikakuGame() {
       width: params.cols as number,
       height: params.rows as number,
     };
+    ctx.generator.puzzleMode.setValue("Solver");
+
     ctx.board.puzzle.setValue(null);
-    ctx.board.solverPuzzle.setValue(blankBoard);
+    ctx.board.customPuzzle.setValue(blankBoard);
     ctx.resetGame();
   };
 
   const handleGenerateBoard = () => {
-    ctx.board.solverPuzzle.setValue(null);
+    ctx.generator.puzzleMode.setValue("Generator");
+    ctx.board.customPuzzle.setValue(null);
     ctx.generatePuzzle();
   };
 
@@ -217,17 +221,20 @@ function ShikakuGame() {
       placedCount={validRect.length}
       totalCount={ctx.board.puzzle.value?.infos.length ?? 0}
       isSolved={ctx.isComplete}
+      onNext={ctx.loadNextPuzzle}
       // ===============================================================================
       inforPanel={
         <SolverStatusBar
-          status={ctx.solverStatus.value}
+          status={ctx.solver.status.value}
           message={
-            ctx.solverStatus.value === "solving"
+            ctx.solver.status.value === "solving"
               ? "Running backtracking solver…"
-              : ctx.solverStatus.value === "done"
-                ? `Solution found — ${ctx.board.solverSolution.value?.length} rectangles`
-                : ctx.solverStatus.value === "error"
-                  ? "No solution found"
+              : ctx.solver.status.value === "done"
+                ? `Solution found — ${ctx.solver.solution.value?.length ?? 0} rectangles`
+                : ctx.solver.status.value === "error"
+                  ? !ctx.solver.solution.value
+                    ? "Invalid grid setup or no solution found"
+                    : "No solution found"
                   : ""
           }
         />
@@ -247,20 +254,11 @@ function ShikakuGame() {
             paramsConfig: solverBoardParams,
             onGenerate: handleGenerateSolverBoard,
           }}
+          mode={ctx.generator.puzzleMode}
         />
       }
       // ===============================================================================
-      centerPanel={
-        <>
-          <SolveBanner
-            show={ctx.isComplete}
-            timeLabel={formatTime(ctx.timer.elapsedTime)}
-            onNext={ctx.loadNextPuzzle}
-          />
-
-          <ShikakuGrid />
-        </>
-      }
+      centerPanel={<ShikakuGrid />}
       // ===============================================================================
       rightPanel={
         <SolverPanel

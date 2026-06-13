@@ -1,7 +1,7 @@
 // shared/hooks/useGrid.ts
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { CellCoord, CellKey } from "@/shared/components/ui/Grid";
 
 // ─────────────────────────────────────────────
@@ -57,12 +57,63 @@ type GridState = {
 // Pure geometry helpers
 // ─────────────────────────────────────────────
 
-export const cellKey = (c: CellCoord): string => `${c.x}-${c.y}`;
+/**
+ * Converts a sparse coordinate map into a 2D number matrix.
+ *
+ * The map key must be in the format `"x:y"`, where:
+ * - `x` is the row index
+ * - `y` is the column index
+ *
+ * Example:
+ * ```ts
+ * const map = new Map<string, number>();
+ *
+ * map.set("0:0", 1);
+ * map.set("2:3", 10);
+ *
+ * const matrix = mapToMatrix(map);
+ * // [
+ * //   [1],
+ * //   ,
+ * //   [ , , , 10]
+ * // ]
+ * ```
+ *
+ * @param map A map containing matrix coordinates as `"x:y"` keys and numeric values.
+ * @returns A sparse 2D array where values are assigned to their corresponding coordinates.
+ */
+export function mapToMatrix(map: Map<string, number>): number[][] {
+  const matrix: number[][] = [];
 
-export function keyToCoord(k: string): CellCoord {
-  const [x, y] = k.split("-").map(Number);
+  for (const [key, value] of map) {
+    const [x, y] = key.split(":").map(Number);
+
+    matrix[x] ??= [];
+    matrix[x][y] = value;
+  }
+
+  return matrix;
+}
+
+/**
+ * Converts a cell coordinate into a unique grid key.
+ *
+ * @param coord Cell coordinate
+ * @returns Grid key in format "x-y"
+ */
+export const cellKey = (coord: CellCoord): string => `${coord.x}-${coord.y}`;
+
+/**
+ * Converts a grid key into coordinates.
+ *
+ * @param key Grid key in format "x-y"
+ * @returns Parsed coordinate
+ */
+export function keyToCoord(key: string): CellCoord {
+  const [x, y] = key.split("-").map(Number);
   return { x, y };
 }
+
 export function coordToKey(x: number, y: number): CellKey {
   return `${x}-${y}`;
 }
@@ -259,9 +310,12 @@ function swapCutPathTo(path: SwapPath, cutToKey: string): SwapPath {
 // Hook
 // ─────────────────────────────────────────────
 
-export function useGrid(puzzleSize: { rows: number; cols: number }) {
+export function useGrid(
+  puzzleSize: { rows: number; cols: number },
+  mode: GridInteractionMode = "cell",
+) {
   const [interactionMode, setInteractionMode] =
-    useState<GridInteractionMode>("cell");
+    useState<GridInteractionMode>(mode);
 
   const [gridState, setGridState] = useState<GridState>({
     dragStartCoord: null,
@@ -420,87 +474,47 @@ export function useGrid(puzzleSize: { rows: number; cols: number }) {
   }
 
   // ── Generic cell interaction (non-swap modes) ─────────────────────────────
-  function processCellInteraction(
-    currentCoord: CellCoord,
-    startCoord: CellCoord,
-  ) {
-    const targetKey = cellKey(currentCoord);
+  const processCellInteraction = useCallback(
+    (currentCoord: CellCoord, startCoord: CellCoord) => {
+      const targetKey = cellKey(currentCoord);
 
-    setGridState((prev) => {
-      if (prev.lastProcessedKey === targetKey) return prev;
+      setGridState((prev) => {
+        if (prev.lastProcessedKey === targetKey) return prev;
 
-      const { activeCellKeys: keySet, activeCellOrder: order } = prev;
+        const { activeCellKeys: keySet, activeCellOrder: order } = prev;
 
-      switch (interactionMode) {
-        case "cell": {
-          // Always replace with just this cell; persist after drag-end.
-          const newSet = new Set<string>([targetKey]);
-          return {
-            ...prev,
-            activeCellKeys: newSet,
-            activeCellOrder: [targetKey],
-            dragCurrentCoord: currentCoord,
-            lastProcessedKey: targetKey,
-          };
-        }
-
-        case "rect": {
-          // activeCellKeys not used for rect — the derived `selectedCellKeys`
-          // re-computes from dragStartCoord/dragCurrentCoord.
-          // We do store the final rect in activeCellKeys on drag-end (handled
-          // via persistRect flag below — caller passes startCoord).
-          return {
-            ...prev,
-            dragCurrentCoord: currentCoord,
-            lastProcessedKey: targetKey,
-          };
-        }
-
-        case "paint": {
-          const newSet = new Set(keySet);
-          const newOrder = [...order];
-          if (!newSet.has(targetKey)) {
-            newSet.add(targetKey);
-            newOrder.push(targetKey);
+        switch (interactionMode) {
+          case "cell": {
+            // Always replace with just this cell; persist after drag-end.
+            const newSet = new Set<string>([targetKey]);
+            return {
+              ...prev,
+              activeCellKeys: newSet,
+              activeCellOrder: [targetKey],
+              dragCurrentCoord: currentCoord,
+              lastProcessedKey: targetKey,
+            };
           }
-          return {
-            ...prev,
-            activeCellKeys: newSet,
-            activeCellOrder: newOrder,
-            lastProcessedKey: targetKey,
-          };
-        }
 
-        case "pathForward": {
-          const prevAxis = lastMoveAxisRef.current;
-          const { keySet: newSet, order: newOrder } = pathAddForward(
-            keySet,
-            order,
-            targetKey,
-            prevAxis,
-          );
-          if (order.length > 0)
-            lastMoveAxisRef.current = getMoveAxis(
-              order[order.length - 1],
-              targetKey,
-            );
-          return {
-            ...prev,
-            activeCellKeys: newSet,
-            activeCellOrder: newOrder,
-            lastProcessedKey: targetKey,
-          };
-        }
+          case "rect": {
+            // activeCellKeys not used for rect — the derived `selectedCellKeys`
+            // re-computes from dragStartCoord/dragCurrentCoord.
+            // We do store the final rect in activeCellKeys on drag-end (handled
+            // via persistRect flag below — caller passes startCoord).
+            return {
+              ...prev,
+              dragCurrentCoord: currentCoord,
+              lastProcessedKey: targetKey,
+            };
+          }
 
-        case "pathBacktracable": {
-          const prevKey = prev.lastProcessedKey;
-          const isBacktrack =
-            order.length > 1 && targetKey === order[order.length - 2];
-          if (isBacktrack) {
-            const { keySet: newSet, order: newOrder } = pathStepBack(
-              keySet,
-              order,
-            );
+          case "paint": {
+            const newSet = new Set(keySet);
+            const newOrder = [...order];
+            if (!newSet.has(targetKey)) {
+              newSet.add(targetKey);
+              newOrder.push(targetKey);
+            }
             return {
               ...prev,
               activeCellKeys: newSet,
@@ -508,85 +522,125 @@ export function useGrid(puzzleSize: { rows: number; cols: number }) {
               lastProcessedKey: targetKey,
             };
           }
-          const existingIndex = order.indexOf(targetKey);
-          if (existingIndex !== -1 && existingIndex < order.length - 1) {
-            const {
-              keySet: newSet,
-              order: newOrder,
-              didCut,
-            } = pathCutFrom(keySet, order, existingIndex);
-            if (didCut)
+
+          case "pathForward": {
+            const prevAxis = lastMoveAxisRef.current;
+            const { keySet: newSet, order: newOrder } = pathAddForward(
+              keySet,
+              order,
+              targetKey,
+              prevAxis,
+            );
+            if (order.length > 0)
+              lastMoveAxisRef.current = getMoveAxis(
+                order[order.length - 1],
+                targetKey,
+              );
+            return {
+              ...prev,
+              activeCellKeys: newSet,
+              activeCellOrder: newOrder,
+              lastProcessedKey: targetKey,
+            };
+          }
+
+          case "pathBacktracable": {
+            const prevKey = prev.lastProcessedKey;
+            const isBacktrack =
+              order.length > 1 && targetKey === order[order.length - 2];
+            if (isBacktrack) {
+              const { keySet: newSet, order: newOrder } = pathStepBack(
+                keySet,
+                order,
+              );
               return {
                 ...prev,
                 activeCellKeys: newSet,
                 activeCellOrder: newOrder,
                 lastProcessedKey: targetKey,
               };
-          }
-          const prevAxis = prevKey
-            ? getMoveAxis(prevKey, targetKey)
-            : lastMoveAxisRef.current;
-          const { keySet: newSet, order: newOrder } = pathAddForward(
-            keySet,
-            order,
-            targetKey,
-            prevAxis,
-          );
-          lastMoveAxisRef.current = prevAxis;
-          return {
-            ...prev,
-            activeCellKeys: newSet,
-            activeCellOrder: newOrder,
-            lastProcessedKey: targetKey,
-          };
-        }
-
-        case "erase": {
-          if (!keySet.has(targetKey)) return prev;
-          const newSet = new Set(keySet);
-          newSet.delete(targetKey);
-          const newOrder = order.filter((k) => k !== targetKey);
-          return {
-            ...prev,
-            activeCellKeys: newSet,
-            activeCellOrder: newOrder,
-            lastProcessedKey: targetKey,
-          };
-        }
-
-        case "line": {
-          const newSet = new Set<string>();
-          const newOrder: string[] = [];
-          if (startCoord.y === currentCoord.y) {
-            const minX = Math.min(startCoord.x, currentCoord.x);
-            const maxX = Math.max(startCoord.x, currentCoord.x);
-            for (let x = minX; x <= maxX; x++) {
-              const k = `${x}-${startCoord.y}`;
-              newSet.add(k);
-              newOrder.push(k);
             }
-          } else if (startCoord.x === currentCoord.x) {
-            const minY = Math.min(startCoord.y, currentCoord.y);
-            const maxY = Math.max(startCoord.y, currentCoord.y);
-            for (let y = minY; y <= maxY; y++) {
-              const k = `${startCoord.x}-${y}`;
-              newSet.add(k);
-              newOrder.push(k);
+            const existingIndex = order.indexOf(targetKey);
+            if (existingIndex !== -1 && existingIndex < order.length - 1) {
+              const {
+                keySet: newSet,
+                order: newOrder,
+                didCut,
+              } = pathCutFrom(keySet, order, existingIndex);
+              if (didCut)
+                return {
+                  ...prev,
+                  activeCellKeys: newSet,
+                  activeCellOrder: newOrder,
+                  lastProcessedKey: targetKey,
+                };
             }
+            const prevAxis = prevKey
+              ? getMoveAxis(prevKey, targetKey)
+              : lastMoveAxisRef.current;
+            const { keySet: newSet, order: newOrder } = pathAddForward(
+              keySet,
+              order,
+              targetKey,
+              prevAxis,
+            );
+            lastMoveAxisRef.current = prevAxis;
+            return {
+              ...prev,
+              activeCellKeys: newSet,
+              activeCellOrder: newOrder,
+              lastProcessedKey: targetKey,
+            };
           }
-          return {
-            ...prev,
-            activeCellKeys: newSet,
-            activeCellOrder: newOrder,
-            lastProcessedKey: targetKey,
-          };
-        }
 
-        default:
-          return prev;
-      }
-    });
-  }
+          case "erase": {
+            if (!keySet.has(targetKey)) return prev;
+            const newSet = new Set(keySet);
+            newSet.delete(targetKey);
+            const newOrder = order.filter((k) => k !== targetKey);
+            return {
+              ...prev,
+              activeCellKeys: newSet,
+              activeCellOrder: newOrder,
+              lastProcessedKey: targetKey,
+            };
+          }
+
+          case "line": {
+            const newSet = new Set<string>();
+            const newOrder: string[] = [];
+            if (startCoord.y === currentCoord.y) {
+              const minX = Math.min(startCoord.x, currentCoord.x);
+              const maxX = Math.max(startCoord.x, currentCoord.x);
+              for (let x = minX; x <= maxX; x++) {
+                const k = `${x}-${startCoord.y}`;
+                newSet.add(k);
+                newOrder.push(k);
+              }
+            } else if (startCoord.x === currentCoord.x) {
+              const minY = Math.min(startCoord.y, currentCoord.y);
+              const maxY = Math.max(startCoord.y, currentCoord.y);
+              for (let y = minY; y <= maxY; y++) {
+                const k = `${startCoord.x}-${y}`;
+                newSet.add(k);
+                newOrder.push(k);
+              }
+            }
+            return {
+              ...prev,
+              activeCellKeys: newSet,
+              activeCellOrder: newOrder,
+              lastProcessedKey: targetKey,
+            };
+          }
+
+          default:
+            return prev;
+        }
+      });
+    },
+    [interactionMode],
+  );
 
   /**
    * Call this on drag-end for `rect` mode to persist the final rectangle
@@ -650,6 +704,74 @@ export function useGrid(puzzleSize: { rows: number; cols: number }) {
     }
   }, [gridState, interactionMode, swapPaths]);
 
+  // ── actions ──────────────────────────────────────────────
+
+  /**
+   * Handle single click.
+   */
+  const handleClick = useCallback(
+    (coord: CellCoord) => {
+      processCellInteraction(coord, coord);
+    },
+    [processCellInteraction],
+  );
+
+  /**
+   * Handle double click.
+   * Toggle selected state.
+   */
+  const handleDoubleClick = useCallback((coord: CellCoord) => {
+    const key = cellKey(coord);
+
+    setGridState((prev) => {
+      const nextSet = new Set(prev.activeCellKeys);
+      const nextOrder = [...prev.activeCellOrder];
+
+      if (nextSet.has(key)) {
+        nextSet.delete(key);
+
+        return {
+          ...prev,
+          activeCellKeys: nextSet,
+          activeCellOrder: nextOrder.filter((k) => k !== key),
+        };
+      }
+
+      nextSet.add(key);
+
+      return {
+        ...prev,
+        activeCellKeys: nextSet,
+        activeCellOrder: [...nextOrder, key],
+      };
+    });
+  }, []);
+
+  /**
+   * Handle right click.
+   * Remove selected cell.
+   */
+  const handleContextMenu = useCallback(
+    (event: React.MouseEvent, coord: CellCoord) => {
+      event.preventDefault();
+
+      const key = cellKey(coord);
+
+      setGridState((prev) => {
+        if (!prev.activeCellKeys.has(key)) return prev;
+
+        const nextSet = new Set(prev.activeCellKeys);
+        nextSet.delete(key);
+
+        return {
+          ...prev,
+          activeCellKeys: nextSet,
+          activeCellOrder: prev.activeCellOrder.filter((k) => k !== key),
+        };
+      });
+    },
+    [],
+  );
   return {
     rows: puzzleSize.rows,
     cols: puzzleSize.cols,
@@ -685,5 +807,9 @@ export function useGrid(puzzleSize: { rows: number; cols: number }) {
         dragCurrentCoord: current,
       }));
     },
+
+    handleClick,
+    handleDoubleClick,
+    handleContextMenu,
   };
 }

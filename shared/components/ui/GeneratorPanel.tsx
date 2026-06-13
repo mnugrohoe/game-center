@@ -24,7 +24,7 @@ export interface PickerProps {
   tier: StateProp<number>;
   mode: StateProp<GeneratorMode>;
   seed: StateProp<number>;
-  color?: string;
+  color?: ColorType;
 }
 
 export type GeneratorPanelProps = DifficultyPickerProps &

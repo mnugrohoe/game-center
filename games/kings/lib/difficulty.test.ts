@@ -1,34 +1,31 @@
-// games/kings/lib/difficulty.test.ts
-
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
-  DIFF_TIERS,
+  KINGS_TIERS,
   clamp,
-  diffScoreToParams,
   diffScoreToTierIdx,
-  getParamsByLevel,
-  getParamsByTierIdx,
+  generateKingsParams,
+  kingsParamsGenerator,
   lerp,
   levelToDiffScore,
   levelToTierIdx,
   normalizeScore,
 } from "./difficulty";
 
-describe("DIFF_TIERS", () => {
+describe("KINGS_TIERS", () => {
   it("defines 9 tiers", () => {
-    expect(DIFF_TIERS).toHaveLength(9);
+    expect(KINGS_TIERS).toHaveLength(9);
   });
 
   it("has ascending unique diff scores", () => {
-    const scores = DIFF_TIERS.map((t) => t.diffScore);
+    const scores = KINGS_TIERS.map((t) => t.diffScore);
 
     expect(scores).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(new Set(scores).size).toBe(scores.length);
   });
 
   it("has valid min/max grid ranges", () => {
-    for (const tier of DIFF_TIERS) {
+    for (const tier of KINGS_TIERS) {
       expect(tier.minGrid).toBeGreaterThanOrEqual(4);
       expect(tier.maxGrid).toBeLessThanOrEqual(13);
       expect(tier.minGrid).toBeLessThanOrEqual(tier.maxGrid);
@@ -36,7 +33,7 @@ describe("DIFF_TIERS", () => {
   });
 
   it("contains required display fields", () => {
-    for (const tier of DIFF_TIERS) {
+    for (const tier of KINGS_TIERS) {
       expect(tier.name).toBeTruthy();
       expect(tier.icon).toBeTruthy();
 
@@ -52,7 +49,6 @@ describe("shared helper re-exports", () => {
     for (let level = 1; level <= 100; level++) {
       const result = levelToDiffScore(level);
 
-      expect(typeof result).toBe("number");
       expect(Number.isFinite(result)).toBe(true);
       expect(result).toBeGreaterThan(0);
     }
@@ -60,27 +56,26 @@ describe("shared helper re-exports", () => {
 
   it("levelToTierIdx returns valid tier indexes", () => {
     for (let level = 1; level <= 100; level++) {
-      const idx = levelToTierIdx(level, DIFF_TIERS.length);
+      const idx = levelToTierIdx(level, KINGS_TIERS.length);
 
       expect(idx).toBeGreaterThanOrEqual(0);
-      expect(idx).toBeLessThan(DIFF_TIERS.length);
+      expect(idx).toBeLessThan(KINGS_TIERS.length);
     }
   });
 
   it("diffScoreToTierIdx returns valid indexes", () => {
     for (let score = 1; score <= 20; score++) {
-      const idx = diffScoreToTierIdx(score, DIFF_TIERS.length);
+      const idx = diffScoreToTierIdx(score, KINGS_TIERS.length);
 
       expect(idx).toBeGreaterThanOrEqual(0);
-      expect(idx).toBeLessThan(DIFF_TIERS.length);
+      expect(idx).toBeLessThan(KINGS_TIERS.length);
     }
   });
 
-  it("normalizeScore returns finite positive values", () => {
+  it("normalizeScore returns finite values", () => {
     for (let score = 1; score <= 20; score++) {
       const result = normalizeScore(score);
 
-      expect(typeof result).toBe("number");
       expect(Number.isFinite(result)).toBe(true);
       expect(result).toBeGreaterThanOrEqual(0);
     }
@@ -99,30 +94,29 @@ describe("shared helper re-exports", () => {
   });
 });
 
-describe("diffScoreToParams", () => {
-  const fixedRng = () => 0.5;
-
-  it("returns a valid puzzle params object", () => {
-    const result = diffScoreToParams(5, fixedRng);
+describe("generateKingsParams", () => {
+  it("returns a valid params object", () => {
+    const result = generateKingsParams(5, 12345);
 
     expect(result).toHaveProperty("N");
     expect(result).toHaveProperty("compactness");
     expect(result).toHaveProperty("sizeVariance");
-    expect(result).toHaveProperty("label");
+    expect(result).toHaveProperty("tier");
+    expect(result).toHaveProperty("seed");
   });
 
   it("keeps N within valid bounds", () => {
     for (let score = 1; score <= 9; score++) {
-      const result = diffScoreToParams(score, fixedRng);
+      const result = generateKingsParams(score, 12345);
 
-      expect(result.N).toBeGreaterThanOrEqual(4);
-      expect(result.N).toBeLessThanOrEqual(13);
+      expect(result.N).toBeGreaterThanOrEqual(5);
+      expect(result.N).toBeLessThanOrEqual(15);
     }
   });
 
   it("keeps compactness within bounds", () => {
     for (let score = 1; score <= 9; score++) {
-      const result = diffScoreToParams(score, fixedRng);
+      const result = generateKingsParams(score, 12345);
 
       expect(result.compactness).toBeGreaterThanOrEqual(0.1);
       expect(result.compactness).toBeLessThanOrEqual(0.95);
@@ -131,52 +125,85 @@ describe("diffScoreToParams", () => {
 
   it("keeps sizeVariance within bounds", () => {
     for (let score = 1; score <= 9; score++) {
-      const result = diffScoreToParams(score, fixedRng);
+      const result = generateKingsParams(score, 12345);
 
       expect(result.sizeVariance).toBeGreaterThanOrEqual(0);
       expect(result.sizeVariance).toBeLessThanOrEqual(1);
     }
   });
 
-  it("returns a valid label", () => {
-    const labels = [
-      "Trivial",
-      "Very Easy",
-      "Easy",
-      "Moderate",
-      "Medium",
-      "Tricky",
-      "Hard",
-      "Very Hard",
-      "Brutal",
-    ];
+  it("returns the expected tier", () => {
+    for (let tierIdx = 0; tierIdx < KINGS_TIERS.length; tierIdx++) {
+      const result = generateKingsParams(KINGS_TIERS[tierIdx].diffScore, 12345);
 
-    for (let score = 1; score <= 9; score++) {
-      const result = diffScoreToParams(score, fixedRng);
-
-      expect(labels).toContain(result.label);
+      expect(result.tier).toBe(KINGS_TIERS[tierIdx]);
     }
   });
 
+  it("is deterministic for the same seed", () => {
+    const a = generateKingsParams(5, 12345);
+    const b = generateKingsParams(5, 12345);
+
+    expect(a).toEqual(b);
+  });
+
   it("generally increases sizeVariance with higher scores", () => {
-    const easy = diffScoreToParams(1, fixedRng);
-    const hard = diffScoreToParams(9, fixedRng);
+    const easy = generateKingsParams(1, 12345);
+    const hard = generateKingsParams(9, 12345);
 
     expect(hard.sizeVariance).toBeGreaterThan(easy.sizeVariance);
   });
 
   it("generally decreases compactness with higher scores", () => {
-    const easy = diffScoreToParams(1, fixedRng);
-    const hard = diffScoreToParams(9, fixedRng);
+    const easy = generateKingsParams(1, 12345);
+    const hard = generateKingsParams(9, 12345);
 
     expect(hard.compactness).toBeLessThan(easy.compactness);
   });
+
+  it("visual get 10 params from low tier", () => {
+    const params = [];
+
+    for (let seed = 1; seed <= 10; seed++) {
+      params.push(kingsParamsGenerator.byTier(0, seed));
+    }
+
+    console.log("======== KINGS PARAMS LOW =========");
+    console.table(
+      params.map((p) => ({
+        N: p.N,
+        compactness: p.compactness.toFixed(3),
+        sizeVariance: p.sizeVariance.toFixed(3),
+        tier: p.tier.name,
+        seed: p.seed,
+      })),
+    );
+  });
+
+  it("visual get 10 params from high tier", () => {
+    const params = [];
+
+    for (let seed = 1; seed <= 10; seed++) {
+      params.push(kingsParamsGenerator.byTier(KINGS_TIERS.length - 1, seed));
+    }
+
+    console.log("======== KINGS PARAMS HIGH =========");
+    console.table(
+      params.map((p) => ({
+        N: p.N,
+        compactness: p.compactness.toFixed(3),
+        sizeVariance: p.sizeVariance.toFixed(3),
+        tier: p.tier.name,
+        seed: p.seed,
+      })),
+    );
+  });
 });
 
-describe("getParamsByLevel", () => {
-  it("returns valid params", () => {
+describe("kingsParamsGenerator (provider)", () => {
+  it("generates valid params from level", () => {
     for (let level = 1; level <= 50; level++) {
-      const result = getParamsByLevel(level);
+      const result = kingsParamsGenerator.byLevel(level);
 
       expect(result.N).toBeGreaterThanOrEqual(4);
       expect(result.N).toBeLessThanOrEqual(13);
@@ -187,44 +214,37 @@ describe("getParamsByLevel", () => {
       expect(result.sizeVariance).toBeGreaterThanOrEqual(0);
       expect(result.sizeVariance).toBeLessThanOrEqual(1);
 
-      expect(typeof result.label).toBe("string");
+      expect(result.tier).toBeDefined();
     }
   });
 
-  it("is deterministic for the same level", () => {
-    const a = getParamsByLevel(25);
-    const b = getParamsByLevel(25);
-
-    expect(a).toEqual(b);
+  it("is deterministic by level", () => {
+    expect(kingsParamsGenerator.byLevel(25)).toEqual(
+      kingsParamsGenerator.byLevel(25),
+    );
   });
-});
 
-describe("getParamsByTierIdx", () => {
-  it("returns valid params for every tier", () => {
-    vi.spyOn(Date, "now").mockReturnValue(12345);
+  it("generates valid params from tier", () => {
+    for (let tierIdx = 0; tierIdx < KINGS_TIERS.length; tierIdx++) {
+      const result = kingsParamsGenerator.byTier(tierIdx, 12345);
 
-    for (let tierIdx = 0; tierIdx < DIFF_TIERS.length; tierIdx++) {
-      const result = getParamsByTierIdx(tierIdx);
+      expect(result.N).toBeGreaterThanOrEqual(5);
+      expect(result.N).toBeLessThanOrEqual(15);
 
-      expect(result.N).toBeGreaterThanOrEqual(4);
-      expect(result.N).toBeLessThanOrEqual(13);
-
-      expect(result.compactness).toBeGreaterThanOrEqual(0.1);
-      expect(result.compactness).toBeLessThanOrEqual(0.95);
-
-      expect(result.sizeVariance).toBeGreaterThanOrEqual(0);
-      expect(result.sizeVariance).toBeLessThanOrEqual(1);
-
-      expect(typeof result.label).toBe("string");
+      expect(result.tier).toBe(KINGS_TIERS[tierIdx]);
     }
   });
 
-  it("is deterministic when Date.now is mocked", () => {
-    vi.spyOn(Date, "now").mockReturnValue(99999);
+  it("is deterministic by tier + seed", () => {
+    expect(kingsParamsGenerator.byTier(3, 99999)).toEqual(
+      kingsParamsGenerator.byTier(3, 99999),
+    );
+  });
 
-    const a = getParamsByTierIdx(3);
-    const b = getParamsByTierIdx(3);
+  it("varies with different seeds", () => {
+    const a = kingsParamsGenerator.byTier(3, 11111);
+    const b = kingsParamsGenerator.byTier(3, 22222);
 
-    expect(a).toEqual(b);
+    expect(a).not.toEqual(b);
   });
 });

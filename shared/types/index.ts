@@ -72,7 +72,9 @@ type RGBAColor =
   `rgba(${number},${string}${number},${string}${number},${string}${number})`;
 
 /** Standard HSL layout: `hsl(0, 0%, 0%)`. */
-type HSLColor = `hsl(${number},${string}${number}%,${string}${number}%)`;
+type HSLColor =
+  | `hsl(${number},${string}${number}%,${string}${number}%)`
+  | `hsl(${number} ${string}${number}% ${string}${number}%)`;
 
 /** Standard HSLA layout: `hsla(0, 0%, 0%, 0.5)`. */
 type HSLAColor =

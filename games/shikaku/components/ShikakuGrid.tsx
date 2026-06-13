@@ -7,14 +7,17 @@
  */
 
 import { ChangeEvent, FocusEvent, memo, useCallback, useMemo } from "react";
-import { colorFromIndex, T } from "@/shared/components/ui/tokens";
+import { colorId, T } from "@/shared/components/ui/tokens";
 import LogoIcon from "./Logo";
-import { ShikakuPuzzle } from "../lib/generator";
 import useResponsiveCellSize from "@/shared/hooks/useResponsiveCellSize";
 import { useShikaku } from "./ShikakuContext";
-import { RectInfo, userRect } from "../lib/types";
-import { overlaps } from "../lib/utils";
-import { checkShikakuAnchor } from "../lib/validation";
+import {
+  ShikakuPuzzle,
+  RectInfo,
+  userRect,
+  overlaps,
+  checkShikakuAnchor,
+} from "../lib/";
 import {
   GridWrapper,
   GridCell,
@@ -22,6 +25,7 @@ import {
   CellRenderProps,
   CellCoord,
   DragPayload,
+  EmptyGrid,
 } from "@/shared/components/ui/Grid";
 import { cellKey, coordToKey, useGrid } from "@/shared/hooks/useGrid";
 import { clamp } from "@/shared/algorithms";
@@ -32,24 +36,6 @@ import { clamp } from "@/shared/algorithms";
 
 const GAP = 0;
 const MIN_AREA = 2;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Deterministic hash of a string or number, used to derive a stable
- * color index from a rectangle's id.
- */
-function hashString(input: string | number): number {
-  if (typeof input === "number") return input;
-  let hash = 0;
-  for (let i = 0; i < input.length; i++) {
-    hash = (hash << 5) - hash + input.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-components
@@ -94,7 +80,7 @@ type CellData = {
   y: number;
   owner?: userRect;
   anchor?: ShikakuPuzzle["infos"][number];
-  color?: ReturnType<typeof colorFromIndex>;
+  color?: ReturnType<typeof colorId>;
   valid?: boolean;
 };
 
@@ -183,18 +169,6 @@ const SolverInputCell = memo(function SolverInputCell({
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Shown when no puzzle has been generated yet. */
-function EmptyGrid() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-3 w-full h-full">
-      <LogoIcon size="2xl" />
-      <p className="text-xs tracking-widest opacity-50 text-center">
-        Select a difficulty and generate a puzzle
-      </p>
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -211,20 +185,14 @@ function EmptyGrid() {
  * data from context.
  */
 export default function ShikakuGrid() {
-  const { board, timer, isComplete } = useShikaku();
-  const {
-    puzzle,
-    userRects,
-    isSolutionVisible,
-    solverSolution,
-    attempt,
-    solverPuzzle,
-  } = board;
+  const { board, timer, isComplete, generator, solver } = useShikaku();
+  const { puzzle, customPuzzle, moves: userRect, attempt } = board;
   const { elapsedTime, startTimer } = timer;
+  const { solution } = solver;
 
   // ── Dimensions ─────────────────────────────────────────────────────────────
 
-  const activePuzzle = puzzle.value ?? solverPuzzle.value;
+  const activePuzzle = generator.isSolver ? customPuzzle.value : puzzle.value;
 
   const cellSize = useResponsiveCellSize({
     rows: activePuzzle?.height,
@@ -235,18 +203,18 @@ export default function ShikakuGrid() {
   const H = activePuzzle?.height ?? 0;
 
   // ── Rectangle source (solution or user rects) ───────────────────────────────
+  const rects = useMemo(
+    () =>
+      solver.isVisible.value ? (solution.value ?? []) : (userRect.value ?? []),
+    [solver.isVisible.value, solution.value, userRect.value],
+  );
 
-  const rects: userRect[] =
-    isSolutionVisible.value && solverSolution.value
-      ? solverSolution.value
-      : userRects.value;
-
-  const renderMode: "puzzle" | "solver-input" | "solution" =
-    isSolutionVisible.value && solverSolution.value
-      ? "solution"
-      : solverPuzzle.value !== null
-        ? "solver-input"
-        : "puzzle";
+  const renderMode: "puzzle" | "solver-input" | "solution" = solver.isVisible
+    .value
+    ? "solution"
+    : customPuzzle.value !== null
+      ? "solver-input"
+      : "puzzle";
 
   // ── Grid hook ───────────────────────────────────────────────────────────────
 
@@ -255,7 +223,7 @@ export default function ShikakuGrid() {
     cols: puzzle.value?.width ?? 0,
   });
 
-  const disabled = isSolutionVisible.value || isComplete;
+  const disabled = solver.isVisible.value || isComplete;
 
   // ── Derived cell data map ───────────────────────────────────────────────────
 
@@ -268,25 +236,22 @@ export default function ShikakuGrid() {
   const { cellOwnerMap, anchorMap, rectColorMap } = useMemo(() => {
     const cellOwnerMap = new Map<string, userRect>();
     const anchorMap = new Map<string, ShikakuPuzzle["infos"][number]>();
-    const rectColorMap = new Map<
-      string | number,
-      ReturnType<typeof colorFromIndex>
-    >();
+    const rectColorMap = new Map<string | number, ReturnType<typeof colorId>>();
 
     for (const r of rects) {
-      rectColorMap.set(r.id, colorFromIndex(hashString(r.id)));
+      rectColorMap.set(r.id, colorId(r.id));
       for (let y = r.y; y < r.y + r.h; y++)
         for (let x = r.x; x < r.x + r.w; x++)
           cellOwnerMap.set(coordToKey(x, y), r);
     }
 
-    const anchorSrc = puzzle.value ?? solverPuzzle.value;
+    const anchorSrc = puzzle.value ?? customPuzzle.value;
     if (anchorSrc?.infos)
       for (const info of anchorSrc.infos)
         anchorMap.set(coordToKey(info.anchor.x, info.anchor.y), info);
 
     return { cellOwnerMap, anchorMap, rectColorMap };
-  }, [rects, puzzle, solverPuzzle.value]);
+  }, [rects, puzzle.value, customPuzzle.value]);
 
   /**
    * Flat map of per-cell display data, rebuilt only when rects or puzzle
@@ -302,12 +267,12 @@ export default function ShikakuGrid() {
         y: number;
         owner?: userRect;
         anchor?: AnchorType;
-        color?: ReturnType<typeof colorFromIndex>;
+        color?: ReturnType<typeof colorId>;
         valid?: boolean;
       }
     >();
 
-    const src = puzzle.value ?? solverPuzzle.value;
+    const src = puzzle.value ?? customPuzzle.value;
     if (!src?.height || !src?.width) return map;
 
     for (let y = 0; y < src.height; y++) {
@@ -327,7 +292,7 @@ export default function ShikakuGrid() {
     }
 
     return map;
-  }, [puzzle, cellOwnerMap, anchorMap, rectColorMap, solverPuzzle.value]);
+  }, [puzzle, cellOwnerMap, anchorMap, rectColorMap, customPuzzle.value]);
 
   // ── Solver grid handlers ────────────────────────────────────────────────────
 
@@ -338,28 +303,29 @@ export default function ShikakuGrid() {
    */
   const handleSolverGridChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>, coord: CellCoord) => {
-      if (!solverPuzzle.value) return;
+      if (!customPuzzle.value) return;
 
-      const { width = 0 } = solverPuzzle.value;
+      const { width = 0 } = customPuzzle.value;
       const value = Number(e.target.value) || 0;
       const uniqueId = coord.y * width + coord.x;
 
-      const filteredInfos = (solverPuzzle.value.infos ?? []).filter(
+      const filteredInfos = (customPuzzle.value.infos ?? []).filter(
         (item) => item.anchor.x !== coord.x || item.anchor.y !== coord.y,
       );
 
-      // Remove entry when field is cleared.
       if (!value) {
-        solverPuzzle.setValue({ ...solverPuzzle.value, infos: filteredInfos });
+        customPuzzle.setValue({ ...customPuzzle.value, infos: filteredInfos });
         return;
       }
 
-      solverPuzzle.setValue({
-        ...solverPuzzle.value,
+      if (solver.solution.value) solver.reset();
+
+      customPuzzle.setValue({
+        ...customPuzzle.value,
         infos: [...filteredInfos, { id: uniqueId, area: value, anchor: coord }],
       });
     },
-    [solverPuzzle],
+    [customPuzzle, solver],
   );
 
   /**
@@ -368,28 +334,28 @@ export default function ShikakuGrid() {
    */
   const handleSolverGridBlur = useCallback(
     (e: FocusEvent<HTMLInputElement>, coord: CellCoord) => {
-      if (!solverPuzzle.value) return;
+      if (!customPuzzle.value) return;
 
-      const { width = 0, height = 0 } = solverPuzzle.value;
+      const { width = 0, height = 0 } = customPuzzle.value;
       const value = Number(e.target.value) || 0;
       if (!value) return;
 
       const uniqueId = coord.y * width + coord.x;
       const finalValue = clamp(value, MIN_AREA, width * height);
 
-      const filteredInfos = (solverPuzzle.value.infos ?? []).filter(
+      const filteredInfos = (customPuzzle.value.infos ?? []).filter(
         (item) => item.anchor.x !== coord.x || item.anchor.y !== coord.y,
       );
 
-      solverPuzzle.setValue({
-        ...solverPuzzle.value,
+      customPuzzle.setValue({
+        ...customPuzzle.value,
         infos: [
           ...filteredInfos,
           { id: uniqueId, area: finalValue, anchor: coord },
         ],
       });
     },
-    [solverPuzzle],
+    [customPuzzle],
   );
 
   // ── GridWrapper callbacks ───────────────────────────────────────────────────
@@ -421,7 +387,7 @@ export default function ShikakuGrid() {
 
   const handleDragEnd = useCallback(
     (payload: DragPayload) => {
-      if (payload.mode !== "rect" || solverPuzzle.value !== null) return;
+      if (payload.mode !== "rect" || customPuzzle.value !== null) return;
       const { startCoord, currentCoord } = payload;
 
       persistRectSelection();
@@ -439,7 +405,7 @@ export default function ShikakuGrid() {
       attempt.setValue(nextAttempt);
 
       const pzl = puzzle.value!;
-      userRects.setValue((prev) => {
+      userRect.setValue((prev) => {
         const next = prev.filter((r) => !overlaps(r, dr));
         if (dr.w * dr.h === 1) return next; // single-cell drag → no rect
         const newRect: userRect = { id: attempt.value, ...dr };
@@ -447,13 +413,7 @@ export default function ShikakuGrid() {
         return [...next, newRect];
       });
     },
-    [
-      solverPuzzle.value,
-      persistRectSelection,
-      attempt,
-      puzzle.value,
-      userRects,
-    ],
+    [customPuzzle.value, persistRectSelection, attempt, puzzle.value, userRect],
   );
 
   // ── Render cell factories ───────────────────────────────────────────────────
@@ -483,21 +443,21 @@ export default function ShikakuGrid() {
       <SolverInputCell
         coord={coord}
         cellSize={cellSize}
-        infos={solverPuzzle.value?.infos}
+        infos={customPuzzle.value?.infos}
         onCellChange={handleSolverGridChange}
         onCellBlur={handleSolverGridBlur}
       />
     ),
-    [solverPuzzle.value?.infos, handleSolverGridChange, handleSolverGridBlur],
+    [customPuzzle.value?.infos, handleSolverGridChange, handleSolverGridBlur],
   );
 
   // ── Early return ────────────────────────────────────────────────────────────
 
-  if (!activePuzzle) return <EmptyGrid />;
+  if (!activePuzzle) return <EmptyGrid logo={LogoIcon} name="shikaku" />;
 
   // ── Drag preview color (stable across drag) ─────────────────────────────────
 
-  const dragColor = colorFromIndex(attempt.value);
+  const dragColor = colorId(attempt.value);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -510,7 +470,7 @@ export default function ShikakuGrid() {
         gap={GAP}
         dragMode="rect"
         disabled={
-          renderMode !== "puzzle" || isComplete || isSolutionVisible.value
+          renderMode !== "puzzle" || isComplete || solver.isVisible.value
         }
         style={{
           border: `1.5px solid ${T.border2}`,

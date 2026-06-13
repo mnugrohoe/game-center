@@ -20,7 +20,8 @@ import {
   lerp,
   clamp,
 } from "@/shared/algorithms/difficulty";
-import { mkRng, seedFromLevel } from "@/shared/algorithms";
+import { mkRng } from "@/shared/algorithms";
+import { createParamsProvider } from "@/shared/utils/generator";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Re-export shared helpers
@@ -258,17 +259,7 @@ export function generateShikakuParams(
 // ─────────────────────────────────────────────────────────────────────────────
 // Convenience Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-export function getShikakuParamsByLevel(level: number): ShikakuParams {
-  const levelSeed = seedFromLevel(level);
-  const diffScore = levelToDiffScore(level);
-  return generateShikakuParams(diffScore, levelSeed);
-}
-
-export function getShikakuParamsByTierIdx(
-  tierIdx: number,
-  seed: number,
-): ShikakuParams {
-  const diffScore = SHIKAKU_TIERS[tierIdx].diffScore;
-  return generateShikakuParams(diffScore, seed);
-}
+export const shikakuParamsGenerator = createParamsProvider(
+  SHIKAKU_TIERS,
+  generateShikakuParams,
+);

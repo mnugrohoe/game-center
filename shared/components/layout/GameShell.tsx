@@ -30,6 +30,7 @@
 import { T, formatTime } from "../ui/tokens";
 import ProgressRing from "../ui/ProgressRing";
 import { ColorType, DiffTier } from "@/shared/types";
+import { SolveBanner } from "../ui/primitive";
 
 export interface GameShellProps {
   gameName: string;
@@ -46,6 +47,7 @@ export interface GameShellProps {
   leftPanel: React.ReactNode;
   centerPanel: React.ReactNode;
   rightPanel: React.ReactNode;
+  onNext: () => void;
 }
 
 export default function GameShell({
@@ -63,6 +65,7 @@ export default function GameShell({
   leftPanel,
   centerPanel,
   rightPanel,
+  onNext,
 }: GameShellProps) {
   const pct = totalCount > 0 ? placedCount / totalCount : 0;
 
@@ -233,6 +236,11 @@ export default function GameShell({
           overflowY: "auto",
         }}
       >
+        <SolveBanner
+          show={isSolved}
+          timeLabel={formatTime(elapsed)}
+          onNext={onNext}
+        />
         {centerPanel}
       </div>
 

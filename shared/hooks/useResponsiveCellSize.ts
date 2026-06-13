@@ -9,6 +9,7 @@ interface UseResponsiveCellSizeProps {
   minSize?: number;
   maxSize?: number;
   padding?: number;
+  mode?: "fill" | "default";
 }
 
 export default function useResponsiveCellSize({
@@ -18,6 +19,7 @@ export default function useResponsiveCellSize({
   minSize = 20,
   maxSize = 50,
   padding = 24,
+  mode = "default",
 }: UseResponsiveCellSizeProps) {
   const [cellSize, setCellSize] = useState(minSize);
 
@@ -27,15 +29,18 @@ export default function useResponsiveCellSize({
     if (!container || !rows || !cols) return;
 
     const update = () => {
-      const containerWidth = container.clientWidth - padding;
-      const containerHeight = container.clientHeight - padding;
+      const containerWidth = Math.max(0, container.clientWidth - padding);
+      const containerHeight = Math.max(0, container.clientHeight - padding);
 
       const cellFromWidth = Math.floor(containerWidth / cols);
       const cellFromHeight = Math.floor(containerHeight / rows);
+      const idealSize = Math.min(cellFromWidth, cellFromHeight);
 
-      setCellSize(
-        Math.max(minSize, Math.min(cellFromWidth, cellFromHeight, maxSize)),
-      );
+      if (mode === "fill") {
+        setCellSize(Math.max(minSize, idealSize));
+      } else {
+        setCellSize(Math.max(minSize, Math.min(idealSize, maxSize)));
+      }
     };
 
     update();
@@ -49,7 +54,7 @@ export default function useResponsiveCellSize({
       observer.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, [containerId, rows, cols, minSize, maxSize, padding]);
+  }, [containerId, rows, cols, minSize, maxSize, padding, mode]);
 
   return cellSize;
 }

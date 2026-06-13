@@ -1,80 +1,37 @@
 "use client";
 
-import { useState } from "react";
-import { StateProp } from "@/shared/types";
-import { ShikakuPuzzle } from "../lib/generator";
-import { userRect } from "../lib/types";
+import { ShikakuPuzzle, userRect } from "../lib";
+import useGameBoard, { UseGameBoardReturn } from "@/shared/hooks/useGameBoard";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 /**
- * State container returned by useShikakuBoard.
+ * Shikaku-specific extensions on top of the generic board state.
  */
-export interface UseShikakuBoardReturn {
-  /**
-   * Current puzzle.
-   */
-  puzzle: StateProp<ShikakuPuzzle | null>;
+export type UseShikakuBoardReturn = UseGameBoardReturn<ShikakuPuzzle, userRect>;
 
-  /**
-   * User-created rectangles.
-   */
-  userRects: StateProp<userRect[]>;
-
-  /**
-   * Whether the solver solution is visible.
-   */
-  isSolutionVisible: StateProp<boolean>;
-
-  /**
-   * Solver-generated solution.
-   */
-  solverSolution: StateProp<userRect[] | null>;
-
-  attempt: StateProp<number>;
-
-  solverPuzzle: StateProp<Partial<ShikakuPuzzle> | null>;
-}
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
 
 /**
- * Manages all board-related state for a Shikaku puzzle.
+ * Thin adapter over `useGameBoard` that adds Shikaku-specific state.
+ *
+ * Prefer accessing board state through `ShikakuContext` (`useShikaku().board`)
+ * rather than calling this hook directly.
+ *
+ * ### Generic fields (from useGameBoard)
+ * - `puzzle`        — current active ShikakuPuzzle
+ * - `moves`         — user-drawn rectangles (`userRect[]`)
+ * - `attempt`       — retry counter
+ * - `resetBoard()`  — resets moves and attempt counter
  */
 export default function useShikakuBoard(): UseShikakuBoardReturn {
-  const [puzzle, setPuzzle] = useState<ShikakuPuzzle | null>(null);
-  const [userRects, setUserRects] = useState<userRect[]>([]);
-  const [isSolutionVisible, setIsSolutionVisible] = useState(false);
-  const [solverSolution, setSolverSolution] = useState<userRect[] | null>(null);
-  const [attempt, setAttempt] = useState<number>(1);
-  const [solverPuzzle, setSolverPuzzle] =
-    useState<Partial<ShikakuPuzzle> | null>(null);
+  const base = useGameBoard<ShikakuPuzzle, userRect>();
 
   return {
-    puzzle: {
-      value: puzzle,
-      setValue: setPuzzle,
-    },
-
-    userRects: {
-      value: userRects,
-      setValue: setUserRects,
-    },
-
-    isSolutionVisible: {
-      value: isSolutionVisible,
-      setValue: setIsSolutionVisible,
-    },
-
-    solverSolution: {
-      value: solverSolution,
-      setValue: setSolverSolution,
-    },
-
-    attempt: {
-      value: attempt,
-      setValue: setAttempt,
-    },
-
-    solverPuzzle: {
-      value: solverPuzzle,
-      setValue: setSolverPuzzle,
-    },
+    ...base,
   };
 }
