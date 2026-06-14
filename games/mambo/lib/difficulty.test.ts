@@ -1,83 +1,114 @@
-// games/mambo/lib/difficulty.test.ts
-import { describe, expect, it } from "vitest";
+/**
+ * games/mambo/lib/difficulty.test.ts
+ */
+import { describe, it, expect } from "vitest";
+import { generateMamboParams, MAMBO_TIERS } from "./difficulty";
+import { generateSolution, generateMamboBoard } from "./generator";
+import { mkRng } from "@/shared/algorithms/rng";
+import { verifyNoThreeInARow } from "./validation";
 
-import {
-  DIFF_TIERS,
-  diffScoreToTierIdx,
-  levelToDiffScore,
-  levelToTierIdx,
-} from "./difficulty";
+describe("Mambo Architecture Test Suite", () => {
+  describe("Difficulty Parameter Suite (generateMamboParams)", () => {
+    it("should strictly enforce an even grid size matrix", () => {
+      // Test extreme score boundary inputs
+      const lowParams = generateMamboParams(0.5, 12345);
+      const highParams = generateMamboParams(15.0, 67890);
 
-describe("DIFF_TIERS", () => {
-  it("defines 9 difficulty tiers", () => {
-    expect(DIFF_TIERS).toHaveLength(9);
-  });
+      expect(lowParams.gridSize % 2).toBe(0);
+      expect(highParams.gridSize % 2).toBe(0);
+    });
 
-  it("has unique diffScore values in ascending order", () => {
-    const scores = DIFF_TIERS.map((t) => t.diffScore);
+    it("should guarantee completely identical output states given identical seeds", () => {
+      const score = 4.5;
+      const seed = 99999;
 
-    expect(new Set(scores).size).toBe(scores.length);
-    expect(scores).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
-  });
+      const run1 = generateMamboParams(score, seed);
+      const run2 = generateMamboParams(score, seed);
 
-  it("uses even grid sizes", () => {
-    for (const tier of DIFF_TIERS) {
-      expect(tier.gridSize % 2).toBe(0);
-    }
-  });
+      expect(run1).toEqual(run2);
+    });
 
-  it("keeps ratios within valid bounds", () => {
-    for (const tier of DIFF_TIERS) {
-      expect(tier.initRatio).toBeGreaterThan(0);
-      expect(tier.initRatio).toBeLessThanOrEqual(1);
+    it("should respect bounded fallback clamps if tier definitions break limits", () => {
+      const params = generateMamboParams(1.0, 42); // Dusk Tier
 
-      expect(tier.constraintRatio).toBeGreaterThan(0);
-      expect(tier.constraintRatio).toBeLessThanOrEqual(1);
-    }
-  });
-
-  it("contains required display fields", () => {
-    for (const tier of DIFF_TIERS) {
-      expect(tier.name).toBeTruthy();
-      expect(tier.icon).toBeTruthy();
-      expect(tier.sub).toBeTruthy();
-
-      expect(tier.color).toMatch(/^#/);
-      expect(tier.dim).toMatch(/^#/);
-      expect(tier.bright).toMatch(/^#/);
-    }
-  });
-});
-
-describe("levelToDiffScore", () => {
-  it("returns a positive integer score", () => {
-    const result = levelToDiffScore(1);
-    expect(result).toBeGreaterThan(0);
-    expect(Number.isInteger(result)).toBe(true);
-  });
-});
-
-describe("levelToTierIdx", () => {
-  it("returns a valid tier index", () => {
-    for (let level = 1; level <= 100; level++) {
-      const idx = levelToTierIdx(level);
-
-      expect(idx).toBeGreaterThanOrEqual(0);
-      expect(idx).toBeLessThan(DIFF_TIERS.length);
-    }
-  });
-});
-
-describe("diffScoreToTierIdx", () => {
-  it("maps each tier diffScore to its own index", () => {
-    DIFF_TIERS.forEach((tier, idx) => {
-      expect(diffScoreToTierIdx(tier.diffScore, DIFF_TIERS.length)).toBe(idx);
+      // Values must resolve within realistic mathematically sane bounds
+      expect(params.targetInitCount).toBeGreaterThanOrEqual(2);
+      expect(params.targetLinksCount).toBeGreaterThanOrEqual(1);
     });
   });
 
-  it("clamps large scores to the final tier", () => {
-    const idx = diffScoreToTierIdx(999, DIFF_TIERS.length);
+  describe("Solution Generation Optimization (generateSolution)", () => {
+    it("should construct a completely filled, legal solution grid with no 3-in-a-row infractions", () => {
+      const size = 6;
+      const rng = mkRng(888);
+      const grid = generateSolution(size, rng);
 
-    expect(idx).toBe(DIFF_TIERS.length - 1);
+      expect(grid.length).toBe(size);
+      expect(grid[0].length).toBe(size);
+
+      const isLegal = verifyNoThreeInARow(grid, size);
+      expect(isLegal).toBe(true);
+    });
+  });
+
+  describe("Puzzle Engine Integrity (generateMamboBoard)", () => {
+    it("should properly match clue and constraint requests to derived target values", () => {
+      const mockParams = {
+        gridSize: 4,
+        targetInitCount: 6,
+        targetLinksCount: 4,
+        tier: MAMBO_TIERS[0],
+        seed: 777,
+      };
+
+      const puzzleInstance = generateMamboBoard(mockParams);
+      expect(puzzleInstance).not.toBeNull();
+
+      if (puzzleInstance) {
+        // Confirm sizes mirror perfectly
+        expect(puzzleInstance.size).toBe(4);
+        expect(puzzleInstance.constraints.length).toBe(
+          mockParams.targetLinksCount,
+        );
+
+        // Count non-empty starting cells in structural board layout
+        let revealedClues = 0;
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            if (puzzleInstance.puzzle[r][c] !== 0) revealedClues++;
+          }
+        }
+        expect(revealedClues).toBe(mockParams.targetInitCount);
+      }
+    });
+
+    it("should construct relational adjacency types strictly matching logical values", () => {
+      const mockParams = {
+        gridSize: 6,
+        targetInitCount: 8,
+        targetLinksCount: 12,
+        tier: MAMBO_TIERS[2],
+        seed: 101010,
+      };
+
+      const board = generateMamboBoard(mockParams);
+      expect(board).not.toBeNull();
+
+      if (board) {
+        const { solution, constraints } = board;
+
+        // Iterate through generated bridges and verify validity against absolute solution matrix
+        for (const conn of constraints) {
+          const val1 = solution[conn.r1][conn.c1];
+          const val2 = solution[conn.r2][conn.c2];
+
+          if (conn.type === "=") {
+            expect(val1).toBe(val2);
+          } else if (conn.type === "x") {
+            expect(val1).not.toBe(val2);
+          }
+        }
+      }
+    });
   });
 });

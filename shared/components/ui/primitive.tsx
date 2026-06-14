@@ -131,12 +131,14 @@ export function InputNumberRow({
   setValue,
   min = 1,
   max = 100,
+  step = 1,
   color = T.accent,
 }: {
   value: number;
   setValue: (value: number) => void;
   min?: number;
   max?: number;
+  step?: number;
   color?: ColorType;
 }) {
   const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
@@ -150,11 +152,11 @@ export function InputNumberRow({
   };
 
   const decrement = () => {
-    setValue(clamp(value - 1, min, max));
+    setValue(clamp(value - step, min, max));
   };
 
   const increment = () => {
-    setValue(clamp(value + 1, min, max));
+    setValue(clamp(value + step, min, max));
   };
 
   return (
@@ -176,6 +178,7 @@ export function InputNumberRow({
           onChange={(e) => setValue(Number(e.target.value) || min)}
           className="w-16 bg-transparent text-center border-none outline-none ring-0 focus:outline-none focus:ring-0 focus:border-none flex-1"
           style={{ color: `${color}` }}
+          step={step}
         />
 
         <button
@@ -188,7 +191,10 @@ export function InputNumberRow({
         </button>
       </div>
 
-      <ParamsBar isInput={true} {...{ min, max, value, setValue, color }} />
+      <ParamsBar
+        isInput={true}
+        {...{ min, max, value, setValue, color, step }}
+      />
     </div>
   );
 }
@@ -386,13 +392,14 @@ export function ParamRow({
   );
 }
 
-function ParamsBar({
+export function ParamsBar({
   value = 0,
   setValue,
   pct = 0,
   color = T.accent,
   min = 0,
   max = 100,
+  step = 1,
   isInput = false,
 }: {
   value?: number;
@@ -401,41 +408,41 @@ function ParamsBar({
   color?: ColorType;
   min?: number;
   max?: number;
+  step?: number;
   isInput?: boolean;
 }) {
+  const roundToStep = (value: number, step: number, min: number): number => {
+    const inverseStep = 1 / step;
+    return Math.round((value - min) * inverseStep) / inverseStep + min;
+  };
   const logMin = min <= 0 ? 1 : min;
   const logMax = max <= 0 ? 100 : max;
+  const logRange = Math.log(logMax) - Math.log(logMin);
 
   let progress = pct;
-
-  if (isInput) {
-    if (logMax === logMin) {
-      progress = 0;
-    } else {
-      const currentVal = value <= 0 ? logMin : value;
-      progress =
-        (Math.log(currentVal) - Math.log(logMin)) /
-        (Math.log(logMax) - Math.log(logMin));
-    }
+  if (isInput && logRange !== 0) {
+    const currentVal = value <= 0 ? logMin : value;
+    progress = (Math.log(currentVal) - Math.log(logMin)) / logRange;
   }
-
   const clampedProgress = clamp(progress, 0, 1);
 
-  // 2. Fungsi untuk mengubah posisi linear slider (0 - 1) kembali ke nilai logaritmik asli
   const handleSliderChange = (linearValue: number) => {
     if (!setValue) return;
 
-    // Rumus logaritmik: e^(ln(min) + linearValue * (ln(max) - ln(min)))
-    const logValue = Math.exp(
-      Math.log(logMin) + linearValue * (Math.log(logMax) - Math.log(logMin)),
-    );
+    // Rumus logaritmik dasar
+    const logValue = Math.exp(Math.log(logMin) + linearValue * logRange);
 
-    // Jika min asli adalah 0 dan nilainya mendekati logMin, kita kembalikan ke 0 agar user bisa slide sampai mentok kiri
+    // Fitur khusus: Jika min asli adalah 0 dan slider di mentok kiri
     if (min === 0 && Math.round(logValue) === logMin) {
       setValue(0);
-    } else {
-      setValue(Math.round(logValue)); // Gunakan Math.round atau sesuaikan presisi desimal jika butuh float
+      return;
     }
+
+    // Terapkan pembulatan berdasarkan kelipatan `step` yang diinginkan
+    const steppedValue = roundToStep(logValue, step, min);
+
+    // Pastikan hasil pembulatan tidak melompati batas max akibat pembulatan matematika
+    setValue(clamp(steppedValue, min, max));
   };
 
   return (
@@ -443,9 +450,9 @@ function ParamsBar({
       className="relative w-full h-1 rounded-sm overflow-visible mt-0.75"
       style={{ background: T.bg4, color: color }}
     >
-      {/* colored progress */}
+      {/* Colored Progress Bar */}
       <div
-        className="h-full rounded-sm "
+        className="h-full rounded-sm"
         style={{
           width: `${clampedProgress * 100}%`,
           background: color,
@@ -458,18 +465,18 @@ function ParamsBar({
           type="range"
           min={0}
           max={1}
-          step={0.001} // Semakin kecil step-nya, geseran slider logaritmiknya semakin halus
+          step={0.001} // Tetap halus untuk menangani transisi logaritmik yang presisi
           value={clampedProgress}
           onChange={(e) => handleSliderChange(Number(e.target.value))}
           className="slider absolute left-0 top-1/2 w-full -translate-y-1/2 cursor-pointer appearance-none bg-transparent h-4"
         />
       )}
+
       <style jsx>{`
         .slider {
           -webkit-appearance: none;
           appearance: none;
         }
-
         .slider::-webkit-slider-thumb {
           -webkit-appearance: none;
           width: 1px;
@@ -477,7 +484,6 @@ function ParamsBar({
           border-radius: 50%;
           background: transparent;
         }
-
         .slider::-moz-range-thumb {
           width: 1px;
           height: 1px;

@@ -9,7 +9,9 @@ interface UseResponsiveCellSizeProps {
   minSize?: number;
   maxSize?: number;
   padding?: number;
-  mode?: "fill" | "default";
+  gap?: number;
+  mode?: "fill" | "fit-container";
+  scrollbarGuard?: number;
 }
 
 export default function useResponsiveCellSize({
@@ -19,7 +21,9 @@ export default function useResponsiveCellSize({
   minSize = 20,
   maxSize = 50,
   padding = 24,
-  mode = "default",
+  gap = 0,
+  mode = "fit-container",
+  scrollbarGuard = 2,
 }: UseResponsiveCellSizeProps) {
   const [cellSize, setCellSize] = useState(minSize);
 
@@ -29,11 +33,22 @@ export default function useResponsiveCellSize({
     if (!container || !rows || !cols) return;
 
     const update = () => {
-      const containerWidth = Math.max(0, container.clientWidth - padding);
-      const containerHeight = Math.max(0, container.clientHeight - padding);
+      const containerWidth = Math.max(
+        0,
+        container.clientWidth - padding - scrollbarGuard,
+      );
+      const containerHeight = Math.max(
+        0,
+        container.clientHeight - padding - scrollbarGuard,
+      );
 
-      const cellFromWidth = Math.floor(containerWidth / cols);
-      const cellFromHeight = Math.floor(containerHeight / rows);
+      const totalGapWidth = Math.ceil(Math.max(0, cols - 1) * (gap * 1.1));
+      const totalGapHeight = Math.ceil(Math.max(0, rows - 1) * (gap * 1.1));
+
+      const cellFromWidth = Math.floor((containerWidth - totalGapWidth) / cols);
+      const cellFromHeight = Math.floor(
+        (containerHeight - totalGapHeight) / rows,
+      );
       const idealSize = Math.min(cellFromWidth, cellFromHeight);
 
       if (mode === "fill") {
@@ -54,7 +69,17 @@ export default function useResponsiveCellSize({
       observer.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, [containerId, rows, cols, minSize, maxSize, padding, mode]);
+  }, [
+    containerId,
+    rows,
+    cols,
+    minSize,
+    maxSize,
+    padding,
+    gap,
+    mode,
+    scrollbarGuard,
+  ]);
 
   return cellSize;
 }

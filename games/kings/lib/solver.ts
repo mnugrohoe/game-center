@@ -111,35 +111,3 @@ export function hasUniqueSolution(
   const count = countSolutions<Coord, Coord[]>(options, 2); // stop after finding 2
   return count === 1;
 }
-
-/**
- * Converts a list of coordinates into a 2D matrix representation.
- * @param {number} size - The dimensions of the square matrix (size x size).
- * @param {number[][]} coords - Array of [row, col] or [y, x] coordinates.
- * @returns {number[][]} The generated 2D matrix.
- */
-export function createGrid({
-  size,
-  coords,
-  value = KING_CELL_STATE,
-  emptyValue = EMPTY_CELL_STATE,
-}: {
-  size: number;
-  coords?: Coord[];
-  value?: number;
-  emptyValue?: number;
-}): number[][] {
-  const matrix = Array.from({ length: size }, () =>
-    Array(size).fill(emptyValue),
-  );
-
-  if (!coords) return matrix;
-
-  for (const [row, col] of coords) {
-    if (row >= 0 && row < size && col >= 0 && col < size) {
-      matrix[row][col] = value;
-    }
-  }
-
-  return matrix;
-}

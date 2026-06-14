@@ -4,26 +4,14 @@
  * Mambo difficulty config — uses the shared wave system.
  * DIFF_TIERS defined ONCE here (not duplicated in mambo/const.ts — delete that file).
  */
-import type { DiffTier } from "@/shared/types";
-import {
-  levelToDiffScore as sharedLevelToDiffScore,
-  diffScoreToTierIdx,
-  levelToTierIdx as sharedLevelToTierIdx,
-} from "@/shared/algorithms/difficulty";
-
-// Re-export so Mambo code imports from one place
-export { diffScoreToTierIdx };
+import { clamp } from "@/shared/algorithms/difficulty";
+import { mkRng } from "@/shared/algorithms";
+import { createParamsProvider } from "@/shared/utils/generator";
+import type { MamboDiffTier, MamboParams } from "../types";
 
 // ── Mambo tier definition ─────────────────────────────────────────────────────
 
-export interface MamboDiffTier extends DiffTier {
-  sub: string; /* short card subtitle             */
-  gridSize: number; /* even number                     */
-  initRatio: number; /* fraction of cells pre-filled    */
-  constraintRatio: number; /* fraction of edges with constraints */
-}
-
-export const DIFF_TIERS: MamboDiffTier[] = [
+export const MAMBO_TIERS: MamboDiffTier[] = [
   {
     name: "Dusk",
     icon: "🌅",
@@ -134,12 +122,44 @@ export const DIFF_TIERS: MamboDiffTier[] = [
   },
 ];
 
-// ── Level helpers ─────────────────────────────────────────────────────────────
+// ── Score → puzzle params ─────────────────────────────────────────────────────
 
-export function levelToDiffScore(level: number): number {
-  return Math.round(sharedLevelToDiffScore(level));
+export function generateMamboParams(score: number, seed: number): MamboParams {
+  const rng = mkRng(seed);
+
+  const idx = clamp(Math.round(score) - 1, 0, MAMBO_TIERS.length - 1);
+  const tier = MAMBO_TIERS[idx];
+
+  const gridSize = tier.gridSize % 2 === 0 ? tier.gridSize : tier.gridSize + 1;
+  const totalCells = gridSize * gridSize;
+  const totalEdges = 2 * gridSize * (gridSize - 1);
+  const variance = (rng() - 0.5) * 0.06;
+  const finalInitRatio = clamp(tier.initRatio + variance, 0.1, 0.7);
+  const finalConstraintRatio = clamp(
+    tier.constraintRatio + variance,
+    0.05,
+    0.3,
+  );
+
+  const targetInitCount = Math.max(2, Math.round(totalCells * finalInitRatio));
+  const targetLinksCount = Math.max(
+    1,
+    Math.round(totalEdges * finalConstraintRatio),
+  );
+
+  return {
+    gridSize,
+    targetInitCount,
+    targetLinksCount,
+    tier,
+    seed,
+  };
 }
 
-export function levelToTierIdx(level: number): number {
-  return sharedLevelToTierIdx(level, DIFF_TIERS.length);
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Convenience Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+export const mamboParamsGenerator = createParamsProvider(
+  MAMBO_TIERS,
+  generateMamboParams,
+);

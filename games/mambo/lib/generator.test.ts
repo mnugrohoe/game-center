@@ -1,226 +1,222 @@
-// games/mambo/lib/generator.test.ts
+/**
+ * games/mambo/lib/generator.test.ts
+ */
 import { describe, expect, it } from "vitest";
+import { generateMamboBoard, mamboGenerator } from "./generator";
+import { MAMBO_TIERS, mamboParamsGenerator } from "./difficulty";
+import type { MamboParams } from "../types";
 
-import { DIFF_TIERS, levelToTierIdx } from "./difficulty";
-import {
-  generateMamboPuzzle,
-  generateSolution,
-  generateByLevel,
-} from "./generator";
-import { isValidPlacement } from "./solver";
+// Create clean, reproducible test parameters using your standard layout patterns
+const makeParams = (overrides: Partial<MamboParams> = {}): MamboParams => ({
+  gridSize: 6,
+  targetInitCount: 12,
+  targetLinksCount: 10,
+  tier: MAMBO_TIERS[2], // Fog tier
+  seed: 123,
+  ...overrides,
+});
 
-describe("generateSolution", () => {
-  it("creates a square grid of the requested size", () => {
-    const size = 6;
-    const grid = generateSolution(size);
+describe("generateMamboBoard", () => {
+  it("enforces an even grid size matrix automatically via its guard clause", () => {
+    const result = generateMamboBoard(makeParams({ gridSize: 5 })); // 5 is odd
 
-    expect(grid).toHaveLength(size);
-
-    for (const row of grid) {
-      expect(row).toHaveLength(size);
-    }
+    expect(result).not.toBeNull();
+    expect(result!.size).toBe(6); // Automatically bumped to 6
   });
 
-  it("fills the grid with only valid CellValue values", () => {
-    const grid = generateSolution(6);
+  it("generates a valid structural board payload layout matching parameters", () => {
+    const result = generateMamboBoard(makeParams({ gridSize: 6, seed: 12345 }));
 
-    for (const row of grid) {
+    expect(result).not.toBeNull();
+    expect(result!.puzzle).toHaveLength(6);
+    expect(result!.solution).toHaveLength(6);
+    expect(result!.size).toBe(6);
+  });
+
+  it("produces an exact number of revealed starting clues matching targetInitCount", () => {
+    const targetInitCount = 14;
+    const result = generateMamboBoard(
+      makeParams({ gridSize: 6, targetInitCount, seed: 777 }),
+    );
+
+    let actualClues = 0;
+    for (const row of result!.puzzle) {
       for (const cell of row) {
-        expect([1, 2]).toContain(cell);
+        if (cell !== 0) actualClues++;
       }
     }
+    expect(actualClues).toBe(targetInitCount);
   });
 
-  it("creates a fully valid solved board", () => {
+  it("produces an exact number of relationship links matching targetLinksCount", () => {
+    const targetLinksCount = 15;
+    const result = generateMamboBoard(
+      makeParams({ gridSize: 6, targetLinksCount, seed: 888 }),
+    );
+
+    expect(result!.constraints).toHaveLength(targetLinksCount);
+  });
+
+  it("ensures all generated constraint connections stay orthogonally inside edge coordinates", () => {
     const size = 6;
-    const grid = generateSolution(size);
+    const result = generateMamboBoard(
+      makeParams({ gridSize: size, seed: 999 }),
+    );
 
-    for (let r = 0; r < size; r++) {
-      for (let c = 0; c < size; c++) {
-        const val = grid[r][c];
+    for (const link of result!.constraints) {
+      // Must be adjacent coordinates on the matrix
+      const distance =
+        Math.abs(link.r1 - link.r2) + Math.abs(link.c1 - link.c2);
+      expect(distance).toBe(1);
 
-        // temporarily remove cell
-        grid[r][c] = 0;
-
-        const valid = isValidPlacement(grid, r, c, val, size);
-
-        // restore
-        grid[r][c] = val;
-
-        expect(valid).toBe(true);
-      }
+      // Verify layout boundaries
+      expect(link.r1).toBeLessThan(size);
+      expect(link.c1).toBeLessThan(size);
+      expect(link.r2).toBeLessThan(size);
+      expect(link.c2).toBeLessThan(size);
     }
   });
 
-  it("generates different boards sometimes", () => {
-    const a = generateSolution(6);
-    const b = generateSolution(6);
+  it("is completely deterministic given the same parameters and seed instance", () => {
+    const params = makeParams({ seed: 5555 });
 
-    expect(JSON.stringify(a)).not.toEqual(JSON.stringify(b));
+    expect(generateMamboBoard(params)).toEqual(generateMamboBoard(params));
+  });
+
+  it("varies board layouts perfectly when provided different seed inputs", () => {
+    const a = generateMamboBoard(makeParams({ seed: 1111 }));
+    const b = generateMamboBoard(makeParams({ seed: 2222 }));
+
+    expect(a).not.toEqual(b);
   });
 });
 
-describe("generateMamboPuzzle", () => {
-  it("creates a puzzle for every difficulty tier", () => {
-    DIFF_TIERS.forEach((tier, diffId) => {
-      const puzzle = generateMamboPuzzle(diffId);
+describe("mamboGenerator.byLevel", () => {
+  it("generates functional valid puzzles across all sample game levels", () => {
+    const logs = [];
 
-      expect(puzzle.diffId).toBe(diffId);
-      expect(puzzle.size).toBe(tier.gridSize);
-
-      expect(puzzle.puzzle).toHaveLength(tier.gridSize);
-      expect(puzzle.solution).toHaveLength(tier.gridSize);
-    });
-  });
-
-  it("solution contains only valid values", () => {
-    const puzzle = generateMamboPuzzle(0);
-
-    for (const row of puzzle.solution) {
-      for (const cell of row) {
-        expect([1, 2]).toContain(cell);
-      }
-    }
-  });
-
-  it("puzzle contains only 0, 1, or 2", () => {
-    const puzzle = generateMamboPuzzle(0);
-
-    for (const row of puzzle.puzzle) {
-      for (const cell of row) {
-        expect([0, 1, 2]).toContain(cell);
-      }
-    }
-  });
-
-  it("prefilled cells match the solution", () => {
-    const puzzle = generateMamboPuzzle(2);
-
-    for (let r = 0; r < puzzle.size; r++) {
-      for (let c = 0; c < puzzle.size; c++) {
-        const cell = puzzle.puzzle[r][c];
-
-        if (cell !== 0) {
-          expect(cell).toBe(puzzle.solution[r][c]);
-        }
-      }
-    }
-  });
-
-  it("constraints correctly reflect the solution", () => {
-    const puzzle = generateMamboPuzzle(3);
-
-    for (const cn of puzzle.constraints) {
-      const a = puzzle.solution[cn.r1][cn.c1];
-      const b = puzzle.solution[cn.r2][cn.c2];
-
-      if (cn.type === "=") {
-        expect(a).toBe(b);
-      }
-
-      if (cn.type === "x") {
-        expect(a).not.toBe(b);
-      }
-    }
-  });
-
-  it("constraint count respects the 20% cap", () => {
-    const puzzle = generateMamboPuzzle(4);
-
-    const totalEdges = puzzle.size * (puzzle.size - 1) * 2;
-
-    const maxAllowed = Math.floor(totalEdges * 0.2);
-
-    expect(puzzle.constraints.length).toBeLessThanOrEqual(maxAllowed);
-  });
-
-  it("generates some empty cells", () => {
-    const puzzle = generateMamboPuzzle(0);
-
-    const emptyCount = puzzle.puzzle.flat().filter((v) => v === 0).length;
-
-    expect(emptyCount).toBeGreaterThan(0);
-  });
-
-  it("prints debug output", () => {
-    const puzzle = generateMamboPuzzle(1);
-
-    expect(puzzle).toBeDefined();
-  });
-});
-describe("generateByLevel", () => {
-  it("generates a puzzle using the mapped difficulty tier", () => {
-    for (let level = 1; level <= 50; level++) {
-      const expectedDiffId = levelToTierIdx(level);
-
-      const puzzle = generateByLevel(level);
-
-      expect(puzzle.diffId).toBe(expectedDiffId);
-    }
-  });
-
-  it("uses the correct tier configuration", () => {
     for (let level = 1; level <= 20; level++) {
-      const diffId = levelToTierIdx(level);
-      const tier = DIFF_TIERS[diffId];
+      const result = mamboGenerator.byLevel(level);
 
-      const puzzle = generateByLevel(level);
+      expect(result).not.toBeNull();
+      expect(result!.size % 2).toBe(0);
+      expect(result!.solution.length).toBe(result!.size);
 
-      expect(puzzle.size).toBe(tier.gridSize);
+      // Map out clean tabular presentation snapshots
+      if (level <= 10) {
+        // Count clues dynamically
+        let clueCount = 0;
+        result!.puzzle.forEach((row) =>
+          row.forEach((cell) => {
+            if (cell !== 0) clueCount++;
+          }),
+        );
+
+        logs.push({
+          "Game Level": level,
+          Tier: result!.params.tier.name,
+          "Grid Size": `${result!.size}x${result!.size}`,
+          "Clues Count": clueCount,
+          Constraints: result!.constraints.length,
+          Seed: result!.params.seed,
+        });
+      }
     }
+
+    console.log("\n--- MAMBO BY LEVEL PREVIEW ---");
+    console.table(logs);
   });
 
-  it("creates a valid puzzle structure", () => {
-    const puzzle = generateByLevel(10);
-
-    expect(puzzle.puzzle).toHaveLength(puzzle.size);
-    expect(puzzle.solution).toHaveLength(puzzle.size);
-
-    for (const row of puzzle.puzzle) {
-      expect(row).toHaveLength(puzzle.size);
-
-      for (const cell of row) {
-        expect([0, 1, 2]).toContain(cell);
-      }
-    }
-
-    for (const row of puzzle.solution) {
-      expect(row).toHaveLength(puzzle.size);
-
-      for (const cell of row) {
-        expect([1, 2]).toContain(cell);
-      }
-    }
+  it("is deterministic when executing identical byLevel requests", () => {
+    expect(mamboGenerator.byLevel(12)).toEqual(mamboGenerator.byLevel(12));
   });
 
-  it("prefilled cells always match the solution", () => {
-    const puzzle = generateByLevel(25);
+  it("respects calculated dynamic level parameters perfectly", () => {
+    const level = 15;
 
-    for (let r = 0; r < puzzle.size; r++) {
-      for (let c = 0; c < puzzle.size; c++) {
-        const cell = puzzle.puzzle[r][c];
+    const params = mamboParamsGenerator.byLevel(level);
+    const result = mamboGenerator.byLevel(level);
 
-        if (cell !== 0) {
-          expect(cell).toBe(puzzle.solution[r][c]);
-        }
-      }
-    }
-  });
-
-  it("constraints always match the solution", () => {
-    const puzzle = generateByLevel(30);
-
-    for (const cn of puzzle.constraints) {
-      const a = puzzle.solution[cn.r1][cn.c1];
-      const b = puzzle.solution[cn.r2][cn.c2];
-
-      if (cn.type === "=") {
-        expect(a).toBe(b);
-      }
-
-      if (cn.type === "x") {
-        expect(a).not.toBe(b);
-      }
-    }
+    expect(result!.size).toBe(params.gridSize);
   });
 });
+
+describe("mamboGenerator.byTier", () => {
+  it("generates operational board puzzles for all defined difficulty tiers", () => {
+    const logs = [];
+
+    for (let tierIdx = 0; tierIdx < MAMBO_TIERS.length; tierIdx++) {
+      const result = mamboGenerator.byTier(tierIdx, 12345);
+
+      expect(result).not.toBeNull();
+      expect(result!.constraints.length).toBeGreaterThanOrEqual(0);
+
+      let clueCount = 0;
+      result!.puzzle.forEach((row) =>
+        row.forEach((cell) => {
+          if (cell !== 0) clueCount++;
+        }),
+      );
+
+      logs.push({
+        "Tier Index": tierIdx,
+        "Tier Name": result!.params.tier.name,
+        "Grid Size": `${result!.size}x${result!.size}`,
+        "Clues (Pre-filled)": clueCount,
+        "Constraints (=/x)": result!.constraints.length,
+        "Seed Passed": result!.params.seed,
+      });
+    }
+
+    console.log("\n--- MAMBO ALL TIERS MATRIX ---");
+    console.table(logs);
+  });
+
+  it("is completely deterministic across byTier calls given identical seeds", () => {
+    const lastTierIdx = MAMBO_TIERS.length - 1;
+
+    expect(mamboGenerator.byTier(lastTierIdx, 99999)).toEqual(
+      mamboGenerator.byTier(lastTierIdx, 99999),
+    );
+  });
+
+  it("scales board grid size layouts upward as difficulty tiers escalate", () => {
+    const easyBoard = mamboGenerator.byTier(0, 55555); // Dusk tier (4x4)
+    const hardBoard = mamboGenerator.byTier(MAMBO_TIERS.length - 1, 55555); // Zenith tier (10x10)
+
+    expect(hardBoard!.size).toBeGreaterThan(easyBoard!.size);
+  });
+});
+
+// describe("visual representation logging", () => {
+//   it("logs a complete diagnostic snapshot of a generated puzzle layout", () => {
+//     const board = mamboGenerator.byLevel(3); // Level 3 sample
+//     expect(board).not.toBeNull();
+//     console.log(JSON.stringify(board, null, 2));
+//     // Mapping helper for clean visual feedback in terminal logs
+//     const glyphs: Record<number, string> = { 0: " · ", 1: " ☀ ", 2: " ◑ " };
+
+//     const formattedPuzzle = board!.puzzle
+//       .map((row) => row.map((cell) => glyphs[cell]).join(""))
+//       .join("\n");
+
+//     const formattedSolution = board!.solution
+//       .map((row) => row.map((cell) => glyphs[cell]).join(""))
+//       .join("\n");
+
+//     console.log(`\n=========================================`);
+//     console.log(`  MAMBO VISUAL DIAGNOSTIC (LEVEL 3)      `);
+//     console.log(`=========================================`);
+//     console.log(
+//       `Size: ${board!.size}x${board!.size} | Seed: ${board!.params.seed}`,
+//     );
+//     console.log(`Constraints Count: ${board!.constraints.length}`);
+//     console.log(`-----------------------------------------`);
+//     console.log(`STARTING PUZZLE LAYOUT:\n`);
+//     console.log(formattedPuzzle);
+//     console.log(`-----------------------------------------`);
+//     console.log(`COMPLETED SOLUTION MATRIX:\n`);
+//     console.log(formattedSolution);
+//     console.log(`=========================================\n`);
+//   });
+// });

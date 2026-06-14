@@ -11,7 +11,7 @@ import {
   SectionLabel,
   InputNumberRow,
 } from "./primitive";
-import { ColorType } from "@/shared/types";
+import { ColorType, InputType } from "@/shared/types";
 import { GenerateBtn } from "./GeneratorPanel";
 
 // ---------------------------------------------------------------------------
@@ -107,7 +107,7 @@ export function SolverPanel({
 
 export type ParamType = "number" | "string";
 
-export interface BaseParamConfig {
+export interface BaseParamConfig extends InputType {
   key: string;
   label: string;
   type: ParamType;
@@ -117,6 +117,7 @@ export interface NumberParamConfig extends BaseParamConfig {
   type: "number";
   min?: number;
   max?: number;
+  step?: number;
   defaultValue?: number;
 }
 
@@ -175,6 +176,7 @@ export function SolverPanelGenerator({
                   setValue={(val) => handleChange(param.key, val)}
                   min={(param as NumberParamConfig).min}
                   max={(param as NumberParamConfig).max}
+                  step={(param as NumberParamConfig).step}
                   color={color}
                 />
               ) : (

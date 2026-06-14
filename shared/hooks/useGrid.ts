@@ -101,7 +101,7 @@ export function mapToMatrix(map: Map<string, number>): number[][] {
  * @param coord Cell coordinate
  * @returns Grid key in format "x-y"
  */
-export const cellKey = (coord: CellCoord): string => `${coord.x}-${coord.y}`;
+export const cellKey = (coord: CellCoord): CellKey => `${coord.x}-${coord.y}`;
 
 /**
  * Converts a grid key into coordinates.

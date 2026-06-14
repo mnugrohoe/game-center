@@ -141,6 +141,10 @@ export type ButtonType = React.ButtonHTMLAttributes<HTMLButtonElement>;
  */
 export type DivType = React.HTMLAttributes<HTMLDivElement>;
 
+/** * Extends the native HTML input attributes specification for generic structural layout composition.
+ */
+export type InputType = React.HTMLAttributes<HTMLInputElement>;
+
 /**
  * Standardized generic encapsulation mapping model wrapper targeting unified mutual React `useState` prop hook pipelines.
  * @template T The underlying element data structure tracking mutation events.

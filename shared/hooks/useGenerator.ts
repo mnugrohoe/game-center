@@ -177,8 +177,8 @@ export default function useGenerator(): UseGeneratorReturn {
           activeSeed,
         );
 
-        onPuzzle(puzzle);
         onReset?.();
+        onPuzzle(puzzle);
       } catch (error) {
         console.error(error);
         onError?.("error");
@@ -216,10 +216,9 @@ export default function useGenerator(): UseGeneratorReturn {
             seed,
           );
 
-          onPuzzle(puzzle);
           onReset?.();
+          onPuzzle(puzzle);
         } else {
-          // Difficulty mode: generate a fresh random seed for each puzzle.
           const nextSeed = getRandomSeed();
           setSeed(nextSeed);
 
@@ -232,8 +231,8 @@ export default function useGenerator(): UseGeneratorReturn {
             nextSeed,
           );
 
-          onPuzzle(puzzle);
           onReset?.();
+          onPuzzle(puzzle);
         }
       } catch (error) {
         console.error(error);

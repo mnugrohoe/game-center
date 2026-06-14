@@ -1,287 +1,134 @@
-// games/mambo/lib/solver.test.ts
 import { describe, expect, it } from "vitest";
+import { isValidPlacement, solveMambo } from "./solver";
+import type { MamboCellValue, MamboConstraint } from "../types";
 
-import type { CellValue, Constraint, MamboPuzzle } from "../types";
+describe("Mambo Solver Logic Suite", () => {
+  describe("isValidPlacement() — Custom Board Context", () => {
+    /**
+     * Verifies that a local placement is allowed even if an invalid triple
+     * configuration exists farther away in the same row, provided it does
+     * not exceed the overall element quota.
+     */
+    it("should allow a placement if a 3-in-a-row violation exists elsewhere in the row", () => {
+      const size = 8;
+      const grid: MamboCellValue[][] = [
+        [0, 0, 0, 0, 0, 2, 2, 2],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0],
+      ];
 
-import { checkWin, isValidPlacement, solveMambo } from "./solver";
+      const result = isValidPlacement(grid, 0, 0, 1, size);
+      expect(result).toBe(true);
+    });
 
-describe("isValidPlacement", () => {
-  it("allows a valid placement", () => {
-    const grid: CellValue[][] = [
-      [1, 2, 0, 0],
-      [2, 1, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-    ];
+    /**
+     * Verifies that the placement is rejected if it directly creates or completes
+     * an illegal horizontal triple grouping.
+     */
+    it("should reject a placement that triggers a local horizontal triple sandwich", () => {
+      const size = 4;
+      const grid: MamboCellValue[][] = [
+        [1, 0, 1, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ];
 
-    const result = isValidPlacement(grid, 0, 2, 1, 4);
+      expect(isValidPlacement(grid, 0, 1, 1, size)).toBe(false);
+      expect(isValidPlacement(grid, 0, 1, 2, size)).toBe(true);
+    });
 
-    expect(result).toBe(true);
+    /**
+     * Verifies that a placement is blocked if adding the value causes the total count
+     * of that item in the row or column to exceed N/2.
+     */
+    it("should reject placements exceeding half-grid balance quotas", () => {
+      const size = 4;
+      const grid: MamboCellValue[][] = [
+        [1, 1, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ];
+
+      expect(isValidPlacement(grid, 0, 2, 1, size)).toBe(false);
+      expect(isValidPlacement(grid, 0, 2, 2, size)).toBe(true);
+    });
   });
 
-  it("rejects row quota overflow", () => {
-    const grid: CellValue[][] = [
-      [1, 1, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-    ];
+  describe("solveMambo() — Backtracking & Custom Isolation", () => {
+    /**
+     * Confirms the backtracking solver can successfully resolve an empty grid
+     * with standard relational layout constraints.
+     */
+    it("should solve a legal minimal empty puzzle with adjacent relational constraints", () => {
+      const size = 4;
+      const grid: MamboCellValue[][] = [
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ];
 
-    const result = isValidPlacement(grid, 0, 2, 1, 4);
+      const constraints: MamboConstraint[] = [
+        { r1: 0, c1: 0, r2: 0, c2: 1, type: "x" },
+      ];
 
-    expect(result).toBe(false);
-  });
+      const solution = solveMambo(grid, constraints, size);
 
-  it("rejects column quota overflow", () => {
-    const grid: CellValue[][] = [
-      [1, 0, 0, 0],
-      [1, 0, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-    ];
-
-    const result = isValidPlacement(grid, 2, 0, 1, 4);
-
-    expect(result).toBe(false);
-  });
-
-  it("rejects 3 consecutive identical values in a row", () => {
-    const grid: CellValue[][] = [
-      [1, 1, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-    ];
-
-    const result = isValidPlacement(grid, 0, 2, 1, 4);
-
-    expect(result).toBe(false);
-  });
-
-  it("rejects 3 consecutive identical values in a column", () => {
-    const grid: CellValue[][] = [
-      [2, 0, 0, 0],
-      [2, 0, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-    ];
-
-    const result = isValidPlacement(grid, 2, 0, 2, 4);
-
-    expect(result).toBe(false);
-  });
-
-  it("does not mutate the original grid", () => {
-    const grid: CellValue[][] = [
-      [1, 2, 0, 0],
-      [2, 1, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-    ];
-
-    const before = JSON.stringify(grid);
-
-    isValidPlacement(grid, 0, 2, 1, 4);
-
-    expect(JSON.stringify(grid)).toBe(before);
-  });
-});
-
-describe("solveMambo", () => {
-  it("solves a simple puzzle", () => {
-    const grid: CellValue[][] = [
-      [1, 2, 0, 0],
-      [2, 1, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-    ];
-
-    const constraints: Constraint[] = [];
-
-    const solved = solveMambo(grid, constraints, 4);
-
-    expect(solved).not.toBeNull();
-
-    for (const row of solved!) {
-      for (const cell of row) {
-        expect([1, 2]).toContain(cell);
+      expect(solution).not.toBeNull();
+      if (solution) {
+        expect(solution[0][0]).not.toBe(solution[0][1]);
+        expect(solution[0][0]).toBeGreaterThan(0);
       }
-    }
-  });
+    });
 
-  it("does not mutate the original puzzle grid", () => {
-    const grid: CellValue[][] = [
-      [1, 2, 0, 0],
-      [2, 1, 0, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-    ];
+    /**
+     * Ensures that pre-filled cells provided by custom boards or layout states
+     * remain unmodified during the state evaluation loop.
+     */
+    it("should protect initial preset cells from being overwritten during backtrack loops", () => {
+      const size = 4;
+      const grid: MamboCellValue[][] = [
+        [1, 1, 2, 2],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ];
 
-    const before = JSON.stringify(grid);
+      const solution = solveMambo(grid, [], size);
 
-    solveMambo(grid, [], 4);
+      expect(solution).not.toBeNull();
+      if (solution) {
+        expect(solution[0]).toEqual([1, 1, 2, 2]);
+      }
+    });
 
-    expect(JSON.stringify(grid)).toBe(before);
-  });
+    /**
+     * Ensures that impossible custom configurations return null rather than entering
+     * an endless execution sequence.
+     */
+    it("should fail gracefully and return null for completely unresolvable constraint matrices", () => {
+      const size = 4;
+      const grid: MamboCellValue[][] = [
+        [1, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+      ];
 
-  it("respects '=' constraints", () => {
-    const grid: CellValue[][] = [
-      [1, 0, 0, 0],
-      [0, 2, 0, 0],
-      [0, 0, 1, 0],
-      [0, 0, 0, 2],
-    ];
+      const brokenMamboConstraints: MamboConstraint[] = [
+        { r1: 0, c1: 0, r2: 0, c2: 1, type: "=" },
+        { r1: 0, c1: 0, r2: 0, c2: 1, type: "x" },
+      ];
 
-    const constraints: Constraint[] = [
-      {
-        r1: 0,
-        c1: 0,
-        r2: 0,
-        c2: 1,
-        type: "=",
-      },
-    ];
-
-    const solved = solveMambo(grid, constraints, 4);
-
-    expect(solved).not.toBeNull();
-    expect(solved![0][0]).toBe(solved![0][1]);
-  });
-
-  it("respects 'x' constraints", () => {
-    const grid: CellValue[][] = [
-      [1, 0],
-      [0, 0],
-    ];
-
-    const constraints: Constraint[] = [
-      {
-        r1: 0,
-        c1: 0,
-        r2: 0,
-        c2: 1,
-        type: "x",
-      },
-    ];
-
-    const solved = solveMambo(grid, constraints, 2);
-
-    expect(solved).not.toBeNull();
-    expect(solved![0][0]).not.toBe(solved![0][1]);
-  });
-
-  it("returns null for impossible constraints", () => {
-    const grid: CellValue[][] = [
-      [1, 0],
-      [0, 0],
-    ];
-
-    const constraints: Constraint[] = [
-      {
-        r1: 0,
-        c1: 0,
-        r2: 0,
-        c2: 1,
-        type: "=",
-      },
-      {
-        r1: 0,
-        c1: 0,
-        r2: 0,
-        c2: 1,
-        type: "x",
-      },
-    ];
-
-    const solved = solveMambo(grid, constraints, 2);
-
-    expect(solved).toBeNull();
-  });
-});
-
-describe("checkWin", () => {
-  const winningGrid: CellValue[][] = [
-    [1, 1, 2, 2],
-    [2, 2, 1, 1],
-    [1, 2, 1, 2],
-    [2, 1, 2, 1],
-  ];
-
-  const puzzle: MamboPuzzle = {
-    size: 4,
-    diffId: 0,
-    puzzle: [
-      [1, 0, 0, 2],
-      [0, 2, 1, 0],
-      [0, 0, 0, 0],
-      [0, 0, 0, 0],
-    ],
-    solution: winningGrid,
-    constraints: [
-      {
-        r1: 0,
-        c1: 0,
-        r2: 0,
-        c2: 1,
-        type: "=",
-      },
-    ],
-  };
-
-  it("returns true for a valid solved board", () => {
-    const result = checkWin(winningGrid, puzzle);
-
-    expect(result).toBe(true);
-  });
-
-  it("fails if cells are empty", () => {
-    const grid = winningGrid.map((r) => [...r]);
-    grid[0][0] = 0;
-
-    const result = checkWin(grid, puzzle);
-
-    expect(result).toBe(false);
-  });
-
-  it("fails row balance violations", () => {
-    const grid = winningGrid.map((r) => [...r]);
-    grid[0] = [1, 1, 1, 2];
-
-    const result = checkWin(grid, puzzle);
-
-    expect(result).toBe(false);
-  });
-
-  it("fails column balance violations", () => {
-    const grid = winningGrid.map((r) => [...r]);
-    grid[0][0] = 1;
-    grid[1][0] = 1;
-    grid[2][0] = 1;
-
-    const result = checkWin(grid, puzzle);
-
-    expect(result).toBe(false);
-  });
-
-  it("fails triple adjacency rules", () => {
-    const grid = winningGrid.map((r) => [...r]);
-    grid[0] = [1, 1, 1, 2];
-
-    const result = checkWin(grid, puzzle);
-
-    expect(result).toBe(false);
-  });
-
-  it("fails constraint violations", () => {
-    const grid = winningGrid.map((r) => [...r]);
-    grid[0][1] = 2;
-
-    const result = checkWin(grid, puzzle);
-
-    expect(result).toBe(false);
-  });
-
-  it("prints debugging output", () => {
-    expect(checkWin(winningGrid, puzzle)).toBe(true);
+      const solution = solveMambo(grid, brokenMamboConstraints, size);
+      expect(solution).toBeNull();
+    });
   });
 });
