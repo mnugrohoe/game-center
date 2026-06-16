@@ -14,7 +14,7 @@ import { StateProp } from "@/shared/types";
 
 export type ToolSelectionPanelProps = {
   generator: GeneratorPanelProps;
-  solver: SolverPanelGeneratorProps;
+  solver?: SolverPanelGeneratorProps;
   mode: StateProp<ToolSelectionMode>;
 };
 
@@ -26,12 +26,18 @@ function TabBar({
   active,
   color,
   onChange,
+  showSolver,
 }: {
   active: ToolSelectionMode;
   color: string;
   onChange: (t: ToolSelectionMode) => void;
+  showSolver: boolean;
 }) {
-  const tabs: ToolSelectionMode[] = ["Generator", "Solver"];
+  const tabs: ToolSelectionMode[] = showSolver
+    ? ["Generator", "Solver"]
+    : ["Generator"];
+
+  if (tabs.length <= 1) return null;
 
   return (
     <div className="flex gap-2 p-2">
@@ -71,10 +77,17 @@ export default function ToolSelectionPanel({
   const { tiers, tier } = generator;
   const color = tiers[tier.value]?.color ?? T.accent;
 
+  const hasSolver = Boolean(solver);
+
   return (
     <>
-      <TabBar active={tab} color={color} onChange={setTab} />
-      <Divider />
+      <TabBar
+        active={tab}
+        color={color}
+        onChange={setTab}
+        showSolver={hasSolver}
+      />
+      {hasSolver && <Divider />}
 
       {tab === "Generator" && (
         <GeneratorPanel
@@ -88,7 +101,7 @@ export default function ToolSelectionPanel({
         />
       )}
 
-      {tab === "Solver" && (
+      {tab === "Solver" && hasSolver && solver && (
         <SolverPanelGenerator
           {...{
             ...solver,

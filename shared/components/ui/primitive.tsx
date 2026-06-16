@@ -337,7 +337,7 @@ export function ActionBtn({
       }}
     >
       {icon && <span style={{ fontSize: 13 }}>{icon}</span>}
-      {children}
+      <span>{children}</span>
     </button>
   );
 }

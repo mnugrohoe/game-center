@@ -1,90 +1,77 @@
-// generator.ts
+/**
+ * games/tower/lib/generator.ts
+ *
+ * Sequence puzzle color generator system.
+ *
+ * Architecture:
+ * params configuration
+ * → deterministic rng initialization
+ * → rule-constrained stream assembly
+ * → automated fallback evaluation
+ */
 
-import { TOWER_DIFF_TIERS } from "./difficulty";
+import { mkRng, shuffle } from "@/shared/algorithms";
+import { towerParamsGenerator, type TowerParams } from "./difficulty";
+import { createPuzzleGenerator } from "@/shared/utils/generator";
 
-import {
-  mkRng,
-  shuffle,
-  seedFromDiff,
-  seedFromLevel,
-  levelToDiffScore,
-  clamp,
-} from "@/shared/algorithms";
+// ─── Public & Internal Types ──────────────────────────────────────────────────
 
-export type TowerTarget = number[];
+export interface GeneratorOptions {
+  maxTowerHeight?: number;
+  entropyFactor?: number;
+}
+
+export interface TowerPuzzle {
+  size: number;
+  maxTowerHeight: number;
+  targetSequence: number[];
+  params: TowerParams;
+}
+
+// ─── Core Optimized Generator ─────────────────────────────────────────────────
 
 /**
- * Generates a tower color sequence puzzle.
+ * Generates a tower color sequence puzzle match.
  *
- * Each number in the returned array represents a color index.
- *
- * Example:
- * [1, 2, 3, 1, 2]
- *
- * Generation goals:
- * - deterministic from seed
- * - every color appears at least once when possible
- * - avoid excessive repeated colors
- * - avoid triple streaks
- * - preserve difficulty-driven randomness
- *
- * @param size - Total tower height.
- * @param uniqueColors - Number of distinct colors available.
- * @param maxSameColor - Maximum allowed usage per color.
- * @param variance - Additional shuffle intensity.
- * @param seed - Deterministic RNG seed.
- * @returns Generated tower target sequence.
+ * Each number in the array represents an active color asset index.
+ * Example: [1, 2, 0, 1, 2]
  */
-export function generateTowerTarget(
+export function generateTowerSequence(
   size: number,
-  uniqueColors: number,
+  uniqueColorsCount: number,
   maxSameColor: number,
   variance: number,
-  seed: number,
-): TowerTarget {
+  rng: () => number,
+): TowerPuzzle["targetSequence"] {
   if (size <= 0) {
     throw new Error("Tower size must be greater than 0");
   }
-
-  if (uniqueColors <= 0) {
-    throw new Error("uniqueColors must be greater than 0");
+  if (uniqueColorsCount <= 0) {
+    throw new Error("Unique colors count must be greater than 0");
   }
-
-  const rng = mkRng(seed);
 
   const result: number[] = [];
 
-  /**
-   * Build available color indexes.
-   *
-   * Example:
-   * uniqueColors = 3
-   * => [1, 2, 3]
-   */
-  const colors = Array.from({ length: uniqueColors }, (_, i) => i + 1);
-
-  /**
-   * Track total color usage.
-   */
+  // Track total color usage frequencies
   const usage = new Map<number, number>();
 
+  // Build zero-indexed identifiers (0, 1, 2, 3...)
+  const colorIds = Array.from({ length: uniqueColorsCount }, (_, i) => i);
+
   /**
-   * Ensure every color appears once when possible.
-   *
-   * Prevents overflowing the requested size when:
-   * uniqueColors > size
+   * Goal 1: Ensure every color appears once when space allows.
+   * Prevents overflowing the array length boundary.
    */
-  for (const color of colors) {
+  for (const colorId of colorIds) {
     if (result.length >= size) {
       break;
     }
-
-    result.push(color);
-    usage.set(color, 1);
+    result.push(colorId);
+    usage.set(colorId, 1);
   }
 
   /**
-   * Fill remaining slots while respecting constraints.
+   * Goal 2: Fill remaining slots while preserving placement limits.
    */
   while (result.length < size) {
     let attempts = 0;
@@ -92,191 +79,112 @@ export function generateTowerTarget(
 
     while (attempts < 100) {
       attempts++;
-
-      const next = colors[Math.floor(rng() * colors.length)];
-
+      const next = colorIds[Math.floor(rng() * colorIds.length)];
       const used = usage.get(next) ?? 0;
 
-      /**
-       * Prevent excessive global repetition.
-       */
+      // Rule: Prevent global overflow allocation
       if (used >= maxSameColor) {
         continue;
       }
 
-      /**
-       * Prevent triple streaks.
-       */
+      // Rule: Prevent immediate sequential triple streaks
       const last = result[result.length - 1];
       const beforeLast = result[result.length - 2];
-
       if (next === last && next === beforeLast) {
         continue;
       }
 
       result.push(next);
       usage.set(next, used + 1);
-
       placed = true;
-
       break;
     }
 
     /**
-     * Fallback protection.
-     *
-     * If constraints become impossible,
-     * forcibly insert a valid-ish color to avoid infinite loops.
+     * Fallback Protection Mode
      */
     if (!placed) {
-      const fallback = colors.find((color) => {
-        const used = usage.get(color) ?? 0;
-
+      const fallback = colorIds.find((id) => {
+        const used = usage.get(id) ?? 0;
         if (used >= maxSameColor) {
           return false;
         }
 
         const last = result[result.length - 1];
         const beforeLast = result[result.length - 2];
-
-        return !(color === last && color === beforeLast);
+        return !(id === last && id === beforeLast);
       });
 
-      /**
-       * Absolute emergency fallback.
-       */
-      const emergency = fallback ?? colors[0];
-
+      const emergency = fallback ?? colorIds[0];
       result.push(emergency);
       usage.set(emergency, (usage.get(emergency) ?? 0) + 1);
     }
   }
 
   /**
-   * Additional randomness scaling.
+   * Goal 3: Multi-pass entropy variance shuffling.
    */
   for (let i = 0; i < variance; i++) {
     shuffle(result, rng);
   }
 
   /**
-   * Cleanup any triple streaks introduced by shuffling.
+   * Goal 4: Post-shuffle layout linear patch step.
+   * Runs in O(N) execution time with zero backtracking loops.
    */
   for (let i = 2; i < result.length; i++) {
     if (result[i] === result[i - 1] && result[i] === result[i - 2]) {
-      let swapIdx = Math.floor(rng() * i);
+      // Find an alternative color that breaks the forward streak safely
+      for (const colorId of colorIds) {
+        // Must break the back-streak from this perspective
+        if (colorId === result[i - 1]) continue;
 
-      /**
-       * Retry a few times to find a safer swap target.
-       */
-      for (let tries = 0; tries < 10; tries++) {
-        const candidate = Math.floor(rng() * i);
-
+        // Ensure choosing this won't trigger a forward triple streak down the line
         if (
-          result[candidate] !== result[i] ||
-          candidate < 2 ||
-          !(
-            result[candidate] === result[candidate - 1] &&
-            result[candidate] === result[candidate - 2]
-          )
-        ) {
-          swapIdx = candidate;
-          break;
-        }
-      }
+          i + 2 < result.length &&
+          colorId === result[i + 1] &&
+          colorId === result[i + 2]
+        )
+          continue;
+        if (
+          i + 1 < result.length &&
+          i >= 1 &&
+          colorId === result[i - 1] &&
+          colorId === result[i + 1]
+        )
+          continue;
 
-      [result[i], result[swapIdx]] = [result[swapIdx], result[i]];
+        result[i] = colorId;
+        break;
+      }
     }
   }
 
-  /**
-   * Final hard trim safety.
-   */
   return result.slice(0, size);
 }
 
-/**
- * Generates a tower puzzle using a difficulty score.
- *
- * @param diffScore - Difficulty score identifier.
- * @param entropy - Additional entropy used for seed generation.
- * @returns Generated tower target.
- * @throws Error if the difficulty score is invalid.
- */
-export function generateByDifficulty(
-  diffScore: number,
-  entropy = 1,
-): TowerTarget {
-  const tier = TOWER_DIFF_TIERS.find((t) => t.diffScore === diffScore);
+// ─── Puzzle Generator Implementation ──────────────────────────────────────────
 
-  if (!tier) {
-    throw new Error(`No difficulty tier found for score: ${diffScore}`);
-  }
+export function generateTower(params: TowerParams): TowerPuzzle {
+  const rng = mkRng(params.seed);
 
-  const seed = seedFromDiff(diffScore, entropy);
-
-  return generateTowerTarget(
-    tier.size,
-    tier.uniqueColors,
-    tier.maxSameColor,
-    tier.variance,
-    seed,
+  const targetSequence = generateTowerSequence(
+    params.size,
+    params.uniqueColors,
+    params.maxSameColor,
+    params.tier.variance,
+    rng,
   );
+
+  return {
+    size: params.size,
+    maxTowerHeight: params.maxTowerHeight,
+    targetSequence,
+    params,
+  };
 }
 
-/**
- * Generates a tower puzzle using a tier index.
- *
- * @param tierIdx - Difficulty tier index.
- * @param entropy - Additional entropy used for seed generation.
- * @returns Generated tower target.
- * @throws Error if the tier index is invalid.
- */
-export function generateByTier(tierIdx: number, entropy = 1): TowerTarget {
-  const tier = TOWER_DIFF_TIERS[tierIdx];
-
-  if (!tier) {
-    throw new Error(`There's no Tier at index: ${tierIdx}`);
-  }
-
-  const seed = seedFromDiff(tier.diffScore, entropy);
-
-  return generateTowerTarget(
-    tier.size,
-    tier.uniqueColors,
-    tier.maxSameColor,
-    tier.variance,
-    seed,
-  );
-}
-
-/**
- * Generates a tower puzzle from player progression level.
- *
- * The level is converted into a difficulty score first.
- *
- * @param level - Player level.
- * @returns Generated tower target.
- * @throws Error if no matching difficulty tier exists.
- */
-export function generateByLevel(level: number): TowerTarget {
-  const diffScore = Math.round(
-    clamp(levelToDiffScore(level), 1, TOWER_DIFF_TIERS.length),
-  );
-
-  const tier = TOWER_DIFF_TIERS.find((t) => t.diffScore === diffScore);
-
-  if (!tier) {
-    throw new Error(`No difficulty tier found for score: ${diffScore}`);
-  }
-
-  const seed = seedFromLevel(level);
-
-  return generateTowerTarget(
-    tier.size,
-    tier.uniqueColors,
-    tier.maxSameColor,
-    tier.variance,
-    seed,
-  );
-}
+export const towerGenerator = createPuzzleGenerator(
+  generateTower,
+  towerParamsGenerator,
+);
