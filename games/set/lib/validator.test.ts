@@ -2,103 +2,115 @@ import { describe, expect, it } from "vitest";
 import { completeSet } from "./solver";
 import { isValidSet, validFeature } from "./validator";
 import { mkRng } from "@/shared/algorithms";
-import { generateCard } from "./generator";
+import { generateCustomCard } from "./generator";
+import { COLORS, SYMBOLS, TEXTURES } from "./constants";
+import type { CardType } from "./types";
 
 describe("validFeature", () => {
-  it("returns true when all values are identical", () => {
+  it("mengembalikan true jika semua nilai atribut identik (sama semua)", () => {
     expect(validFeature(["red", "red", "red"])).toBe(true);
   });
 
-  it("returns true when all values are unique", () => {
+  it("mengembalikan true jika semua nilai atribut unik (beda semua)", () => {
     expect(validFeature(["red", "green", "purple"])).toBe(true);
   });
 
-  it("returns false for partially duplicated values", () => {
+  it("mengembalikan false jika ditemukan nilai atribut duplikat parsial (dua sama, satu beda)", () => {
     expect(validFeature(["red", "red", "green"])).toBe(false);
   });
 
-  it("works with numeric values", () => {
+  it("berjalan dengan baik untuk nilai bertipe numerik (count)", () => {
     expect(validFeature([1, 2, 3])).toBe(true);
     expect(validFeature([1, 1, 1])).toBe(true);
     expect(validFeature([1, 1, 2])).toBe(false);
   });
 
-  it("works with boolean values", () => {
+  it("berjalan dengan baik untuk nilai bertipe boolean", () => {
     expect(validFeature([true, true, true])).toBe(true);
     expect(validFeature([true, false, true])).toBe(false);
   });
 });
 
 describe("isValidSet", () => {
-  it("returns true for a valid generated set", () => {
+  it("mengembalikan true untuk formasi kombinasi kartu valid yang dihasilkan solver", () => {
     const rng = mkRng(777);
 
-    const a = generateCard(rng);
-    const b = generateCard(rng);
+    const a = generateCustomCard(rng, SYMBOLS, COLORS, TEXTURES);
+    const b = generateCustomCard(rng, SYMBOLS, COLORS, TEXTURES);
     const c = completeSet(a, b);
 
     expect(isValidSet([a, b, c])).toBe(true);
   });
 
-  it("returns false when card count is not exactly 3", () => {
+  it("mengembalikan false jika jumlah kartu yang diperiksa tidak tepat berjumah 3", () => {
     const rng = mkRng(123);
+    const card = () => generateCustomCard(rng, SYMBOLS, COLORS, TEXTURES);
 
     expect(isValidSet([])).toBe(false);
-    expect(isValidSet([generateCard(rng)])).toBe(false);
-    expect(isValidSet([generateCard(rng), generateCard(rng)])).toBe(false);
-    expect(
-      isValidSet([
-        generateCard(rng),
-        generateCard(rng),
-        generateCard(rng),
-        generateCard(rng),
-      ]),
-    ).toBe(false);
+    expect(isValidSet([card()])).toBe(false);
+    expect(isValidSet([card(), card()])).toBe(false);
+    expect(isValidSet([card(), card(), card(), card()])).toBe(false);
   });
 
-  it("returns false for duplicate card IDs", () => {
+  it("mengembalikan false jika terdapat duplikasi kartu dengan ID yang sama di dalam barisan", () => {
     const rng = mkRng(999);
-    const card = generateCard(rng);
+    const card = generateCustomCard(rng, SYMBOLS, COLORS, TEXTURES);
 
     expect(isValidSet([card, card, card])).toBe(false);
   });
 
-  it("returns false for invalid feature combinations", () => {
-    const rng = mkRng(1);
+  it("mengembalikan false jika salah satu fitur merusak aturan permainan (dua warna sama, satu warna beda)", () => {
+    const cardA: CardType = {
+      id: "OVAL-RED-SOLID-1",
+      symbol: "hourglass",
+      color: "red",
+      texture: "solid",
+      count: 1,
+    };
+    const cardB: CardType = {
+      id: "DIAMOND-RED-STRIPED-2",
+      symbol: "diamond",
+      color: "red", // Sama dengan cardA
+      texture: "striped",
+      count: 2,
+    };
+    const cardC: CardType = {
+      id: "SQUIGGLE-GREEN-OPEN-3",
+      symbol: "love",
+      color: "green", // Berbeda sendiri (Pelanggaran: 2 merah, 1 hijau)
+      texture: "outline",
+      count: 3,
+    };
 
-    const a = generateCard(rng);
-    const b = { ...a, id: "fake-duplicate" }; // force invalid same-features but different id
-    const c = generateCard(rng);
-
-    expect(isValidSet([a, b, c])).toBe(false);
+    expect(isValidSet([cardA, cardB, cardC])).toBe(false);
   });
 
-  it("validates all-different features correctly", () => {
+  it("memvalidasi dengan benar jika semua fitur bertipe serba-berbeda (all-different)", () => {
     const rng = mkRng(42);
 
-    const a = generateCard(rng);
-    const b = generateCard(rng);
+    const a = generateCustomCard(rng, SYMBOLS, COLORS, TEXTURES);
+    const b = generateCustomCard(rng, SYMBOLS, COLORS, TEXTURES);
     const c = completeSet(a, b);
 
     expect(isValidSet([a, b, c])).toBe(true);
   });
 
-  it("validates all-identical features correctly", () => {
+  it("memvalidasi dengan benar jika beberapa fitur bertipe serba-sama (all-identical)", () => {
     const rng = mkRng(100);
 
-    const a = generateCard(rng);
-    const b = generateCard(rng);
+    const a = generateCustomCard(rng, SYMBOLS, COLORS, TEXTURES);
+    const b = generateCustomCard(rng, SYMBOLS, COLORS, TEXTURES);
     const c = completeSet(a, b);
 
     expect(isValidSet([a, b, c])).toBe(true);
   });
 
-  it("rejects mixed feature violations", () => {
+  it("menolak keras manipulasi kartu tiruan yang merusak kesatuan struktur data permainan", () => {
     const rng = mkRng(5);
 
-    const a = generateCard(rng);
-    const b = { ...a }; // same full card
-    const c = generateCard(rng);
+    const a = generateCustomCard(rng, SYMBOLS, COLORS, TEXTURES);
+    const b = { ...a }; // Duplikat objek penuh secara ilegal
+    const c = generateCustomCard(rng, SYMBOLS, COLORS, TEXTURES);
 
     expect(isValidSet([a, b, c])).toBe(false);
   });

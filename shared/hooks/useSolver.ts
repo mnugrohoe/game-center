@@ -53,8 +53,8 @@ export default function useSolver<TInput, TSolution>(
   );
 
   const toggleVisibility = useCallback(() => {
-    setIsVisible((v) => (status === "done" ? !v : false));
-  }, [status]);
+    setIsVisible((v) => !v);
+  }, []);
 
   const reset = useCallback(() => {
     setStatus("idle");

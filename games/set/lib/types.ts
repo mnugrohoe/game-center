@@ -1,15 +1,15 @@
 // types.ts
 
-export type SetSymbol = "diamond" | "hourglass" | "x";
-export type SetColor = "red" | "green" | "purple";
-export type SetTexture = "outline" | "striped" | "solid";
-export type SetCount = 1 | 2 | 3;
-export interface SetCard {
+export type SymbolToken = "diamond" | "hourglass" | "love";
+export type ColorToken = "red" | "green" | "purple";
+export type TextureToken = "outline" | "striped" | "solid";
+export type CountToken = 1 | 2 | 3;
+export interface CardType {
   id: string;
-  symbol: SetSymbol;
-  color: SetColor;
-  texture: SetTexture;
-  count: SetCount;
+  symbol: SymbolToken;
+  color: ColorToken;
+  texture: TextureToken;
+  count: CountToken;
 }
 
 export interface Difficulty {

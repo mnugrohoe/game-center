@@ -62,7 +62,7 @@ export function ShikakuProvider({ children }: { children: React.ReactNode }) {
 
   const {
     puzzle: { setValue: setPuzzle },
-    moves: { setValue: setMoves },
+    playState: { setValue: setPlayState },
     customPuzzle: { value: customPuzzle, setValue: setCustomPuzzle },
     resetBoard,
   } = board;
@@ -81,8 +81,8 @@ export function ShikakuProvider({ children }: { children: React.ReactNode }) {
   // ─── Completion check ──────────────────────────────────────────────────────
   const isComplete = useMemo(() => {
     if (!board.puzzle.value) return false;
-    return checkShikakuComplete(board.moves.value, board.puzzle.value);
-  }, [board.moves.value, board.puzzle.value]);
+    return checkShikakuComplete(board.playState.value, board.puzzle.value);
+  }, [board.playState.value, board.puzzle.value]);
 
   useEffect(() => {
     if (isComplete) stopTimer();
@@ -150,12 +150,12 @@ export function ShikakuProvider({ children }: { children: React.ReactNode }) {
 
   // ─── clearBoard ────────────────────────────────────────────────────────────
   const clearBoard = useCallback(() => {
-    setMoves([]);
+    setPlayState([]);
     if (customPuzzle) {
       setCustomPuzzle({ ...customPuzzle, infos: [] });
       resetGame();
     }
-  }, [setMoves, customPuzzle, setCustomPuzzle, resetGame]);
+  }, [setPlayState, customPuzzle, setCustomPuzzle, resetGame]);
 
   // ─── Context value ─────────────────────────────────────────────────────────
   const contextValue = useMemo<ShikakuContextValue>(

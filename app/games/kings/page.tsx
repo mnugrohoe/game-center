@@ -23,7 +23,6 @@ import { ColorType, GeneratorMode } from "@/shared/types";
 import KingsBoard from "@/games/kings/components/KingsBoard";
 import {
   BLANK_CANVAS_STATE,
-  createGrid,
   KING_CELL_STATE,
   KINGS_TIERS,
   KingsParams,
@@ -83,10 +82,10 @@ function KingsGame() {
   }, [params]);
 
   const kingsCell = useMemo(() => {
-    return ctx.board.moves.value
+    return ctx.board.playState.value
       .flat()
       .filter((cell) => cell === KING_CELL_STATE);
-  }, [ctx.board.moves]);
+  }, [ctx.board.playState]);
 
   // ── Solver panel actions ──────────────────────────────────────────────────
   const solverActions: ActionDef[] = [
@@ -167,10 +166,9 @@ function KingsGame() {
   const handleGenerateSolverBoard = (params: ParamValues) => {
     const blankBoard: Partial<KingsPuzzle> = {
       size: params.size as number,
-      grid: createGrid({
-        size: params.size as number,
-        emptyValue: BLANK_CANVAS_STATE,
-      }),
+      grid: Array.from({ length: params.size as number }, () =>
+        Array(params.size as number).fill(BLANK_CANVAS_STATE),
+      ),
     };
     ctx.board.puzzle.setValue(null);
     ctx.board.customPuzzle.setValue(blankBoard);

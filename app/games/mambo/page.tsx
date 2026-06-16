@@ -77,8 +77,8 @@ function MamboGame() {
   }, [params]);
 
   const placedCount = useMemo(() => {
-    return ctx.board.moves.value.flat().filter((cell) => cell !== 0).length;
-  }, [ctx.board.moves]);
+    return ctx.board.playState.value.flat().filter((cell) => cell !== 0).length;
+  }, [ctx.board.playState]);
 
   // ── Solver panel actions ──────────────────────────────────────────────────
   const solverActions: ActionDef[] = [

@@ -19,25 +19,16 @@ export type UseKingsBoardReturn = UseGameBoardReturn<
 // ---------------------------------------------------------------------------
 
 /**
- * Thin adapter over `useGameBoard` that adds Shikaku-specific state.
+ * Kings-specific adapter for {@link useGameBoard}.
  *
- * Prefer accessing board state through `ShikakuContext` (`useShikaku().board`)
- * rather than calling this hook directly.
+ * Binds the generic puzzle and play state types used by Kings and
+ * returns a fully typed board controller.
  *
- * ### Generic fields (from useGameBoard)
- * - `puzzle`             — current ShikakuPuzzle
- * - `moves`              — user-drawn rectangles (`userRect[]`)
- * - `isSolutionVisible`  — solver overlay visibility toggle
- * - `solverSolution`     — rectangles returned by the auto-solver
- * - `attempt`            — retry counter
- * - `solverStatus`       — `idle | solving | done | error`
- * - `resetBoard()`       — resets all of the above (not `puzzle`)
- *
- * ### Shikaku-specific fields
- * - `solverPuzzle` — partial puzzle entered manually in the solver panel
+ * @returns A typed game board controller for Kings puzzles.
  */
 export default function useKingsBoard(): UseKingsBoardReturn {
   const base = useGameBoard<KingsPuzzle, KingBoardCellState[]>();
+
   return {
     ...base,
   };

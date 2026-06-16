@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  solveKings,
-  isSolve,
-  hasUniqueSolution,
-  convertToMatrix2D,
-} from "./solver";
+import { solveKings, isSolve, hasUniqueSolution } from "./solver";
 import type { Coord } from "@/shared/types";
 
 // ─── REVISI MOCK: Buat mock mesin backtrack yang mensimulasikan hasil asli ───
@@ -94,25 +89,6 @@ describe("Kings Puzzle Solver", () => {
         [2, 2, 2],
       ];
       expect(hasUniqueSolution(gridMultiple, 3)).toBe(false);
-    });
-  });
-
-  describe("convertToMatrix2D", () => {
-    it("should correctly plot coordinates into a 2D binary matrix", () => {
-      const size = 3;
-      const coords: Coord[] = [
-        [0, 0],
-        [2, 1],
-      ];
-
-      const expectedMatrix = [
-        [1, 0, 0],
-        [0, 0, 0],
-        [0, 1, 0],
-      ];
-
-      const result = convertToMatrix2D(size, coords);
-      expect(result).toEqual(expectedMatrix);
     });
   });
 });

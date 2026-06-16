@@ -119,30 +119,57 @@ export default function GeneratorPanel({
 // GenerateBtn — reusable, diexport untuk dipakai SolverPanelGenerator juga
 // ---------------------------------------------------------------------------
 
-interface GenerateBtnProps extends ButtonType {
+/**
+ * Representasi tipe dasar tombol HTML yang diekstensi untuk mencegah redundansi properti.
+ * Ganti `ButtonType` dengan `React.ButtonHTMLAttributes<HTMLButtonElement>` jika Anda menggunakan tipe bawaan React.
+ */
+export interface GenerateBtnProps extends ButtonType {
+  /** Konfigurasi tier tingkat kesulitan untuk mendominasi skema warna utama tombol. */
   tier?: Partial<Tier>;
+  /** Warna kustom fallback jika properti `tier` tidak dikirimkan. */
   color?: ColorType;
+  /** Label teks atau elemen visual kustom di dalam tombol. Jika kosong, akan memakai fallback default "Generate". */
+  label?: React.ReactNode;
 }
 
-export function GenerateBtn({ tier, color, style, ...rest }: GenerateBtnProps) {
-  const col = tier?.color ?? color ?? T.accent;
+/**
+ * Tombol aksi interaktif universal untuk memicu pembuatan teka-teki baru (Generate)
+ * atau menyisipkan elemen data kustom ke dalam papan (Add Cards).
+ *
+ * @component
+ * @export
+ */
+export function GenerateBtn({
+  tier,
+  color,
+  style,
+  label,
+  ...rest
+}: GenerateBtnProps) {
+  /** Menentukan skema warna tombol berdasarkan hierarki: Tier -> Color -> Default Accent Theme */
+  const currentHexColor = tier?.color ?? color ?? T.accent;
 
   return (
     <button
       type="button"
-      className="w-full flex gap-2 items-center justify-center p-3 border bg-transparent text-xs font-bold uppercase cursor-pointer transition-all duration-200 mb-1 shadow-sm"
+      className="w-full flex gap-2 items-center justify-center p-3 border bg-transparent text-xs font-bold uppercase cursor-pointer transition-all duration-200 mb-1 shadow-sm hover:opacity-80 active:scale-[0.99]"
       style={{
         borderRadius: T.radius,
-        borderColor: col,
+        borderColor: currentHexColor,
         fontFamily: T.font,
-        letterSpacing: 3,
-        color: col,
-        boxShadow: `0 0 16px ${col}28`,
+        letterSpacing: "3px",
+        color: currentHexColor,
+        boxShadow: `0 0 16px ${currentHexColor}28`,
         ...style,
       }}
       {...rest}
     >
-      <LuSparkles /> Generate
+      {label ?? (
+        <>
+          <LuSparkles className="w-3.5 h-3.5" />
+          <span>Generate</span>
+        </>
+      )}
     </button>
   );
 }

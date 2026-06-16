@@ -85,7 +85,7 @@ export function KingsProvider({ children }: { children: React.ReactNode }) {
 
   const {
     puzzle: { setValue: setPuzzle },
-    moves: { setValue: setMoves },
+    playState: { setValue: setPlayState },
     customPuzzle: { value: customPuzzle, setValue: setCustomPuzzle },
     resetBoard,
   } = board;
@@ -95,9 +95,12 @@ export function KingsProvider({ children }: { children: React.ReactNode }) {
   // ─── Completion check ──────────────────────────────────────────────────────
   const isComplete = useMemo(() => {
     if (!board.puzzle.value) return false;
-    const complete = checkKingsComplete(board.moves.value, board.puzzle.value);
+    const complete = checkKingsComplete(
+      board.playState.value,
+      board.puzzle.value,
+    );
     return complete;
-  }, [board.moves.value, board.puzzle.value]);
+  }, [board.playState.value, board.puzzle.value]);
 
   useEffect(() => {
     if (isComplete) stopTimer();
@@ -107,9 +110,9 @@ export function KingsProvider({ children }: { children: React.ReactNode }) {
   const onPuzzle = useCallback(
     (puzzle: KingsPuzzle) => {
       setPuzzle(puzzle);
-      setMoves(makeEmptyMoves(puzzle.params.N));
+      setPlayState(makeEmptyMoves(puzzle.params.N));
     },
-    [setPuzzle, setMoves],
+    [setPuzzle, setPlayState],
   );
 
   // ─── Solver ────────────────────────────────────────────────────────────────
@@ -189,12 +192,12 @@ export function KingsProvider({ children }: { children: React.ReactNode }) {
 
   // ─── clearBoard ────────────────────────────────────────────────────────────
   const clearBoard = useCallback(() => {
-    setMoves([]);
+    setPlayState([]);
     if (customPuzzle) {
       setCustomPuzzle({ ...customPuzzle, grid: [] });
       resetGame();
     }
-  }, [setMoves, customPuzzle, setCustomPuzzle, resetGame]);
+  }, [setPlayState, customPuzzle, setCustomPuzzle, resetGame]);
 
   // ─── Context value ─────────────────────────────────────────────────────────
   const contextValue = useMemo<KingsContextValue>(

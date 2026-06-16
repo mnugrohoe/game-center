@@ -262,13 +262,13 @@ export default function MamboBoard() {
   const moves = useMemo((): MamboCellValue[][] => {
     if (solver.isVisible.value) return solver.solution.value ?? [];
     if (isSolver) return customPuzzle.value?.puzzle ?? [];
-    return board.moves.value ?? [];
+    return board.playState.value ?? [];
   }, [
     solver.isVisible.value,
     solver.solution.value,
     isSolver,
     customPuzzle.value?.puzzle,
-    board.moves.value,
+    board.playState.value,
   ]);
 
   // ── Debounced validation ───────────────────────────────────────────────────
@@ -326,14 +326,14 @@ export default function MamboBoard() {
       if (isSolver) {
         if (solver.solution) solver.reset();
         updateCustomPuzzleCell(board.customPuzzle, coord, next);
-      } else updatePlayerMove(board.moves, coord, next);
+      } else updatePlayerMove(board.playState, coord, next);
     },
     [
       isSolver,
       lockedKeys,
       moves,
       timer,
-      board.moves,
+      board.playState,
       board.customPuzzle,
       solver,
     ],

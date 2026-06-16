@@ -82,7 +82,7 @@ export function MamboProvider({ children }: { children: React.ReactNode }) {
 
   const {
     puzzle: { setValue: setPuzzle },
-    moves: { setValue: setMoves },
+    playState: { setValue: setPlayState },
     customPuzzle: { value: customPuzzle, setValue: setCustomPuzzle },
     resetBoard,
   } = board;
@@ -92,9 +92,12 @@ export function MamboProvider({ children }: { children: React.ReactNode }) {
   // ─── Completion check ──────────────────────────────────────────────────────
   const isComplete = useMemo(() => {
     if (!board.puzzle.value) return false;
-    const complete = checkMamboComplete(board.moves.value, board.puzzle.value);
+    const complete = checkMamboComplete(
+      board.playState.value,
+      board.puzzle.value,
+    );
     return complete;
-  }, [board.moves.value, board.puzzle.value]);
+  }, [board.playState.value, board.puzzle.value]);
 
   useEffect(() => {
     if (isComplete) stopTimer();
@@ -104,9 +107,9 @@ export function MamboProvider({ children }: { children: React.ReactNode }) {
   const onPuzzle = useCallback(
     (puzzle: MamboPuzzle) => {
       setPuzzle(puzzle);
-      setMoves(puzzle.puzzle);
+      setPlayState(puzzle.puzzle);
     },
-    [setPuzzle, setMoves],
+    [setPuzzle, setPlayState],
   );
 
   // ─── Solver ────────────────────────────────────────────────────────────────
@@ -183,8 +186,14 @@ export function MamboProvider({ children }: { children: React.ReactNode }) {
       setCustomPuzzle({ ...customPuzzle, puzzle: [] });
       resetGame();
     }
-    setMoves(board.puzzle.value?.puzzle ?? []);
-  }, [setMoves, board.puzzle.value, customPuzzle, setCustomPuzzle, resetGame]);
+    setPlayState(board.puzzle.value?.puzzle ?? []);
+  }, [
+    setPlayState,
+    board.puzzle.value,
+    customPuzzle,
+    setCustomPuzzle,
+    resetGame,
+  ]);
 
   // ─── Context value ─────────────────────────────────────────────────────────
   const contextValue = useMemo<MamboContextValue>(

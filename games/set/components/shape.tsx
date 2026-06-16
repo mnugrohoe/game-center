@@ -2,21 +2,29 @@
 
 import type { SVGProps } from "react";
 import { COLOR_MAP } from "../lib/constants";
-import { SetColor, SetSymbol, SetTexture } from "../lib/types";
+import {
+  ColorToken,
+  CountToken,
+  SymbolToken,
+  TextureToken,
+} from "../lib/types";
 
+// Menambahkan size ke interface props eksisting
 interface ShapeProps extends SVGProps<SVGSVGElement> {
-  symbol: SetSymbol;
+  symbol: SymbolToken;
   fill: string;
   stroke: string;
   stripeId: string;
   striped: boolean;
+  size?: React.CSSProperties["width"];
 }
 
-interface SymbolRendererProps extends SVGProps<SVGSVGElement> {
-  symbol: SetSymbol;
-  color: SetColor;
-  texture: SetTexture;
-  count?: 1 | 2 | 3;
+interface SymbolRendererProps extends Omit<SVGProps<SVGSVGElement>, "size"> {
+  symbol: SymbolToken;
+  color: ColorToken;
+  texture: TextureToken;
+  count?: CountToken;
+  size?: React.CSSProperties["width"];
 }
 
 /* -----------------------------
@@ -31,10 +39,8 @@ const STRIPE_SPACING = 12;
    PATHS
 ------------------------------ */
 
-// const xPathD =
-// "m25 15 25 25 25-25 10 10-25 25 25 25-10 10-25-25-25 25-10-10 25-25-25-25Z";
-const xPathD =
-  "m25 8 25 25 25-25 20 20-25 25 25 25-20 20-25-25-25 25-20-20 25-25-25-25Z";
+const lovePathD =
+  "M50 84.4 C45 80 12 52.5 12 33.5 C12 20 22 10 35 10 C42.5 10 47.5 14 50 17.5 C52.5 14 57.5 10 65 10 C78 10 88 20 88 33.5 C88 52.5 55 80 50 84.4 Z";
 
 const hourGlassPathD =
   "M18 18h64c-4 10-16 20-26 30 10 10 22 24 26 38H18c4-14 16-28 26-38-10-10-22-20-26-30";
@@ -80,9 +86,14 @@ function Shape({
   className,
   stripeId,
   striped,
+  size,
 }: ShapeProps) {
   return (
-    <svg viewBox="0 0 100 100" className={className}>
+    <svg
+      viewBox="0 0 100 100"
+      className={className}
+      style={{ width: size, height: size }} // Mengunci rasio box 1:1 berdasarkan size
+    >
       {striped && StripeDefs(stripeId, stroke)}
 
       {symbol === "diamond" && (
@@ -105,12 +116,12 @@ function Shape({
         />
       )}
 
-      {symbol === "x" && (
+      {symbol === "love" && (
         <path
-          d={xPathD}
+          d={lovePathD}
           fill={fill}
           stroke={stroke}
-          strokeWidth={6}
+          strokeWidth={STROKE}
           strokeLinejoin="round"
           strokeLinecap="round"
         />
@@ -128,10 +139,10 @@ export default function SymbolRenderer({
   color,
   texture,
   count = 1,
-  className = "w-full h-full overflow-visible",
+  size = 48, // Default ukuran 48px jika parent tidak mendefinisikannya
+  className = "overflow-visible shrink-0",
 }: SymbolRendererProps) {
   const stroke = COLOR_MAP[color];
-
   const stripeId = `stripe-${symbol}-${color}`;
 
   const fill =
@@ -142,7 +153,10 @@ export default function SymbolRenderer({
         : "transparent";
 
   return (
-    <div className="flex items-center gap-1">
+    <div
+      className="flex items-center justify-center gap-1 w-full h-full"
+      style={{ minHeight: size }}
+    >
       {Array.from({ length: count }, (_, i) => (
         <Shape
           key={`${symbol}-${texture}-${color}-${i}`}
@@ -152,6 +166,7 @@ export default function SymbolRenderer({
           className={className}
           stripeId={stripeId}
           striped={texture === "striped"}
+          size={size}
         />
       ))}
     </div>

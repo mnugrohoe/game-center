@@ -102,8 +102,8 @@ function ShikakuGame() {
   }, [params]);
 
   const validRect = useMemo(() => {
-    return ctx.board.moves.value.filter((r) => r.validAnchor);
-  }, [ctx.board.moves]);
+    return ctx.board.playState.value.filter((r) => r.validAnchor);
+  }, [ctx.board.playState]);
 
   // ── Solver panel actions ──────────────────────────────────────────────────
   const solverActions: ActionDef[] = [

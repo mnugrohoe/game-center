@@ -3,43 +3,18 @@
 import { useState } from "react";
 import { T } from "./tokens";
 import { Divider } from "./primitive";
-import GeneratorPanel, { Tier } from "./GeneratorPanel";
-import {
-  SolverPanelGenerator,
-  ParamValues,
-  SolverGeneratorParamConfig,
-} from "./SolverPanel";
+import GeneratorPanel, { GeneratorPanelProps } from "./GeneratorPanel";
+import { SolverPanelGenerator, SolverPanelGeneratorProps } from "./SolverPanel";
 import { ToolSelectionMode } from "@/shared/types";
-import { GeneratorMode, StateProp } from "@/shared/types";
+import { StateProp } from "@/shared/types";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-/** Props untuk mode Generator — diteruskan langsung ke GeneratorPanel */
-export type GeneratorConfig = {
-  tiers: Tier[];
-  tier: StateProp<number>;
-  mode: StateProp<GeneratorMode>;
-  level: StateProp<number>;
-  seed: StateProp<number>;
-  onGenerate: () => void;
-};
-
-/**
- * Props untuk mode Solver — dua varian:
- *
- * - `"params"` → SolverPanelGenerator (form params + generate button)
- * - `"items"`  → SolverPanel klasik (item list, stats, action buttons)
- */
-export type SolverConfig = {
-  paramsConfig: SolverGeneratorParamConfig[];
-  onGenerate: (values: ParamValues) => void;
-};
-
 export type ToolSelectionPanelProps = {
-  generator: GeneratorConfig;
-  solver: SolverConfig;
+  generator: GeneratorPanelProps;
+  solver: SolverPanelGeneratorProps;
   mode: StateProp<ToolSelectionMode>;
 };
 
@@ -91,38 +66,37 @@ export default function ToolSelectionPanel({
   solver,
   mode,
 }: ToolSelectionPanelProps) {
-  const [tool, setTool] = useState<ToolSelectionMode>("Generator");
+  const [tab, setTab] = useState<ToolSelectionMode>("Generator");
 
   const { tiers, tier } = generator;
   const color = tiers[tier.value]?.color ?? T.accent;
 
   return (
     <>
-      <TabBar active={tool} color={color} onChange={setTool} />
-
+      <TabBar active={tab} color={color} onChange={setTab} />
       <Divider />
 
-      {tool === "Generator" && (
+      {tab === "Generator" && (
         <GeneratorPanel
-          tiers={generator.tiers}
-          tier={generator.tier}
-          mode={generator.mode}
-          level={generator.level}
-          seed={generator.seed}
-          onGenerate={() => {
-            mode.setValue("Generator");
-            generator.onGenerate();
+          {...{
+            ...generator,
+            onGenerate: () => {
+              mode.setValue("Generator");
+              generator.onGenerate();
+            },
           }}
         />
       )}
 
-      {tool === "Solver" && (
+      {tab === "Solver" && (
         <SolverPanelGenerator
-          color={color}
-          paramsConfig={solver.paramsConfig}
-          onGenerate={(values) => {
-            mode.setValue("Solver");
-            solver.onGenerate(values);
+          {...{
+            ...solver,
+            onGenerate: (values) => {
+              mode.setValue("Solver");
+              solver.onGenerate(values);
+            },
+            color: solver.color ?? color,
           }}
         />
       )}

@@ -188,8 +188,8 @@ export default function KingsBoard() {
     () =>
       solver.isVisible.value && solution.value
         ? (coordsToGrid(N, solution.value) ?? [])
-        : (board.moves.value ?? []),
-    [solver.isVisible.value, solution.value, board.moves, N],
+        : (board.playState.value ?? []),
+    [solver.isVisible.value, solution.value, board.playState, N],
   );
 
   // ── Drag control refs (no re-render on change) ───────────────────────────
@@ -287,9 +287,9 @@ export default function KingsBoard() {
   const placeKing = useCallback(
     (coord: CellCoord) => {
       if (lockedKeys.has(coordToKey(coord.x, coord.y))) return;
-      setGridValue(board.moves, coord, KING_CELL_STATE);
+      setGridValue(board.playState, coord, KING_CELL_STATE);
     },
-    [lockedKeys, board.moves],
+    [lockedKeys, board.playState],
   );
 
   const paintRegion = useCallback(
@@ -354,10 +354,10 @@ export default function KingsBoard() {
         current === EMPTY_CELL_STATE ? MARKER_CELL_STATE : EMPTY_CELL_STATE;
 
       dragLockRef.current = target;
-      setGridValue(board.moves, coord, target);
+      setGridValue(board.playState, coord, target);
       didPaintOnDownRef.current = true;
     },
-    [isSolver, board.moves, moves, lockedKeys, paintRegion, timer],
+    [isSolver, board.playState, moves, lockedKeys, paintRegion, timer],
   );
 
   const handleClick = useCallback(
@@ -375,9 +375,9 @@ export default function KingsBoard() {
       if (lockedKeys.has(key)) return;
 
       const current = moves[coord.y]?.[coord.x] ?? EMPTY_CELL_STATE;
-      setGridValue(board.moves, coord, nextPlayState(current));
+      setGridValue(board.playState, coord, nextPlayState(current));
     },
-    [isSolver, lockedKeys, board.moves, moves, timer],
+    [isSolver, lockedKeys, board.playState, moves, timer],
   );
 
   const handleDoubleClick = useCallback(
@@ -417,9 +417,9 @@ export default function KingsBoard() {
       const current = moves[coord.y]?.[coord.x] ?? EMPTY_CELL_STATE;
       if (current === KING_CELL_STATE) return;
 
-      setGridValue(board.moves, coord, dragLockRef.current);
+      setGridValue(board.playState, coord, dragLockRef.current);
     },
-    [isSolver, board.moves, moves, lockedKeys, paintRegion, timer],
+    [isSolver, board.playState, moves, lockedKeys, paintRegion, timer],
   );
 
   const handleDragEnd = useCallback(() => {

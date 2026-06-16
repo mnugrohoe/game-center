@@ -1,48 +1,47 @@
-// solver.ts
+// games/set/lib/solver.ts
 
 import { COLORS, COUNTS, SYMBOLS, TEXTURES } from "./constants";
-
-import { SetCard } from "./types";
-
+import type { CardType } from "./types";
 import { isValidSet } from "./validator";
 
 /**
- * Generates a deterministic unique signature for a SET card.
- *
- * The signature is used for:
- * - map lookups
- * - deduplication
- * - canonical card reconstruction
- *
- * @param card - SET card.
- * @returns Pipe-delimited card signature.
+ * Generates a deterministic unique signature string for a SET card.
+ * Uses a hyphen-delimited format matching generator lookup structures.
  */
-export function cardSignature(card: Omit<SetCard, "id">): string {
+export function cardSignature(card: Omit<CardType, "id">): string {
   return [card.symbol, card.color, card.texture, card.count].join("-");
 }
 
 /**
- * Finds every valid SET combination on a board.
- *
- * Performs a brute-force search across all 3-card combinations.
- *
- * @param cards - Board cards.
- * @returns Array of all valid SET triples.
+ * Finds every valid SET combination on a board with optimized execution time.
+ * Reduces loop checks from O(N^3) to O(N^2) using a Map index lookup.
  */
-export function findAllSets(cards: SetCard[]): [SetCard, SetCard, SetCard][] {
-  const sets: [SetCard, SetCard, SetCard][] = [];
+export function findAllSets(
+  cards: CardType[],
+): [CardType, CardType, CardType][] {
+  const sets: [CardType, CardType, CardType][] = [];
+  const cardIndexMap = new Map<string, { card: CardType; index: number }>();
 
-  for (let i = 0; i < cards.length - 2; i++) {
-    for (let j = i + 1; j < cards.length - 1; j++) {
-      for (let k = j + 1; k < cards.length; k++) {
-        const combo: [SetCard, SetCard, SetCard] = [
-          cards[i],
-          cards[j],
-          cards[k],
-        ];
+  for (let i = 0; i < cards.length; i++) {
+    cardIndexMap.set(cards[i].id, { card: cards[i], index: i });
+  }
 
-        if (isValidSet(combo)) {
-          sets.push(combo);
+  for (let i = 0; i < cards.length - 1; i++) {
+    for (let j = i + 1; j < cards.length; j++) {
+      const cardA = cards[i];
+      const cardB = cards[j];
+
+      const neededCard = completeSet(cardA, cardB);
+      const matchData = cardIndexMap.get(neededCard.id);
+
+      if (matchData) {
+        const { card: match, index: matchIdx } = matchData;
+
+        if (i < matchIdx && j < matchIdx) {
+          const combo: [CardType, CardType, CardType] = [cardA, cardB, match];
+          if (isValidSet(combo)) {
+            sets.push(combo);
+          }
         }
       }
     }
@@ -52,45 +51,18 @@ export function findAllSets(cards: SetCard[]): [SetCard, SetCard, SetCard][] {
 }
 
 /**
- * Computes the required third feature value needed to complete a SET.
- *
- * SET rule:
- * - If two values are identical, the third must match.
- * - If two values differ, the third must be the remaining unique value.
- *
- * @typeParam T - Feature value type.
- * @param a - First feature value.
- * @param b - Second feature value.
- * @param all - Full list of possible feature values.
- * @returns Completing feature value.
+ * Computes the required third feature value needed to complete a valid matching triplet.
  */
 function completeFeature<T>(a: T, b: T, all: readonly T[]): T {
-  if (a === b) {
-    return a;
-  }
-
+  if (a === b) return a;
   return all.find((v) => v !== a && v !== b)!;
 }
 
 /**
- * Computes the exact third card required to complete a valid SET.
- *
- * Uses SET rules independently across:
- * - symbol
- * - color
- * - texture
- * - count
- *
- * The resulting feature combination is resolved into the canonical
- * card instance using the global card lookup table.
- *
- * @param a - First card.
- * @param b - Second card.
- * @returns The unique completing SET card.
- * @throws Error if the reconstructed card cannot be found.
+ * Computes the exact third card signature required to satisfy a valid SET rule.
  */
-export function completeSet(a: SetCard, b: SetCard): SetCard {
-  const completed: Omit<SetCard, "id"> = {
+export function completeSet(a: CardType, b: CardType): CardType {
+  const completed: Omit<CardType, "id"> = {
     symbol: completeFeature(a.symbol, b.symbol, SYMBOLS),
     color: completeFeature(a.color, b.color, COLORS),
     texture: completeFeature(a.texture, b.texture, TEXTURES),
@@ -99,14 +71,8 @@ export function completeSet(a: SetCard, b: SetCard): SetCard {
 
   const signature = cardSignature(completed);
 
-  const realCard: SetCard = {
+  return {
     id: signature,
     ...completed,
   };
-
-  if (!realCard) {
-    throw new Error(`Unable to find real SET card: ${signature}`);
-  }
-
-  return realCard;
 }
