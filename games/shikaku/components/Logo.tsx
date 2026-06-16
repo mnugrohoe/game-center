@@ -1,7 +1,7 @@
 import { LogoIconProps } from "@/shared/components/ui/Grid";
 import { logoSize } from "@/shared/theme/logo";
 
-export default function LogoIcon({ size = "md" }: LogoIconProps) {
+export default function ShikakuLogo({ size = "md" }: LogoIconProps) {
   return (
     <div
       className={`grid grid-cols-3 grid-rows-3 gap-0 text-black ${logoSize[size].container} rounded-sm overflow-hidden`}

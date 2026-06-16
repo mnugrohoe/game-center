@@ -1,4 +1,4 @@
-import TowerLogo from "@/games/tower/componets/Logo";
+import TowerLogo from "@/games/tower/components/Logo";
 
 export default function debugLogoPage() {
   return (

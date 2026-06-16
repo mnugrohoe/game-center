@@ -39,7 +39,7 @@ function ColorPeg({ value, size = "h-6 w-6" }: ColorPegProps) {
 
   return (
     <div
-      className={`rounded-full transition-all duration-200 shadow-inner border border-white/5 flex-shrink-0 ${size}`}
+      className={`rounded-full transition-all duration-200 shadow-inner border border-white/5 shrink-0 ${size}`}
       style={{ backgroundColor: bgStyle }}
     />
   );
@@ -48,7 +48,7 @@ function ColorPeg({ value, size = "h-6 w-6" }: ColorPegProps) {
 function HiddenPeg({ failed = false }: { failed?: boolean }) {
   return (
     <div
-      className={`rounded-full h-6 w-6 flex items-center justify-center border transition-colors duration-200 flex-shrink-0 ${
+      className={`rounded-full h-6 w-6 flex items-center justify-center border transition-colors duration-200 shrink-0 ${
         failed
           ? "bg-red-950/40 border-red-500/30 text-red-400"
           : "bg-slate-800/60 border-slate-700/50 text-slate-500"
@@ -198,7 +198,7 @@ function AttemptRowChannel({
     <div
       className={`flex items-center justify-between gap-4 p-2 rounded-lg border transition-all duration-200 ${
         isCurrentActiveRow
-          ? "bg-white/[0.04] border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.05)]"
+          ? "bg-white/4 border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.05)]"
           : "bg-transparent border-transparent opacity-75 hover:opacity-100"
       }`}
     >

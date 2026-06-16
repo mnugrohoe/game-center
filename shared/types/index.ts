@@ -6,6 +6,8 @@
  * * @module SharedTypes
  */
 
+import { LogoIconProps } from "../components/ui/Grid";
+
 // ── 1. GRID PRIMITIVES ───────────────────────────────────────────────────────
 
 /** * A 2-D integer grid. Negative values usually denote unassigned cells.
@@ -153,3 +155,13 @@ export type StateProp<T> = {
   value: T;
   setValue: React.Dispatch<React.SetStateAction<T>>;
 };
+
+export interface GameMetadata {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  icon: React.ComponentType<LogoIconProps>;
+  tags: string[];
+  rules: string[];
+}

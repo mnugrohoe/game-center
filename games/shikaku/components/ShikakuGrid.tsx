@@ -186,7 +186,7 @@ const SolverInputCell = memo(function SolverInputCell({
  */
 export default function ShikakuGrid() {
   const { board, timer, isComplete, generator, solver } = useShikaku();
-  const { puzzle, customPuzzle, moves: userRect, attempt } = board;
+  const { puzzle, customPuzzle, playState: userRect, attempt } = board;
   const { elapsedTime, startTimer } = timer;
   const { solution } = solver;
 

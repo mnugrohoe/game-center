@@ -23,8 +23,8 @@ import {
   TOWER_DIFF_TIERS,
   towerParamsGenerator,
 } from "@/games/tower/lib/difficulty";
-import TowerLogo from "@/games/tower/componets/Logo";
-import TowerBoard from "@/games/tower/componets/TowerBoard";
+import TowerLogo from "@/games/tower/components/Logo";
+import TowerBoard from "@/games/tower/components/TowerBoard";
 import {
   FaArrowRotateLeft,
   FaPlus,

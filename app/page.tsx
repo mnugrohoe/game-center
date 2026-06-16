@@ -2,51 +2,52 @@ import Link from "next/link";
 
 const GAMES = [
   {
-    href:        "/games/kings",
-    title:       "Kings",
-    icon:        "♛",
-    description: "Place one king per region, row, and column. No two kings may be adjacent.",
-    tags:        ["Puzzle", "Logic"],
-    status:      "playable" as const,
+    href: "/games/kings",
+    title: "Kings",
+    icon: "♛",
+    description:
+      "Place one king per region, row, and column. No two kings may be adjacent.",
+    tags: ["Puzzle", "Logic"],
+    status: "playable" as const,
   },
   {
-    href:        "/games/mambo",
-    title:       "Mambo",
-    icon:        "☀",
-    description: "Fill the grid with equal suns and moons. No three identical symbols in a row.",
-    tags:        ["Logic", "Casual"],
-    status:      "playable" as const,
+    href: "/games/mambo",
+    title: "Mambo",
+    icon: "☀",
+    description:
+      "Fill the grid with equal suns and moons. No three identical symbols in a row.",
+    tags: ["Logic", "Casual"],
+    status: "playable" as const,
   },
   {
-    href:        "#",
-    title:       "Water Sort",
-    icon:        "🧪",
+    href: "#",
+    title: "Water Sort",
+    icon: "🧪",
     description: "Sort colored liquids into separate bottles.",
-    tags:        ["Puzzle", "Casual"],
-    status:      "coming" as const,
+    tags: ["Puzzle", "Casual"],
+    status: "coming" as const,
   },
   {
-    href:        "#",
-    title:       "Connect Pipe",
-    icon:        "🔧",
+    href: "#",
+    title: "Connect Pipe",
+    icon: "🔧",
     description: "Connect all pipes so water flows from source to destination.",
-    tags:        ["Puzzle", "Logic"],
-    status:      "coming" as const,
+    tags: ["Puzzle", "Logic"],
+    status: "coming" as const,
   },
 ] as const;
 
 export default function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center py-16 px-6 bg-bg">
-
       {/* Header */}
       <header className="text-center mb-14">
         <div className="flex items-center justify-center gap-4 mb-2">
-          <div className="h-px w-20 bg-gradient-to-r from-transparent to-gold-500" />
+          <div className="h-px w-20 bg-linear-to-r from-transparent to-gold-500" />
           <h1 className="font-display text-3xl font-bold text-gold-100 tracking-[0.12em]">
             GAME CENTER
           </h1>
-          <div className="h-px w-20 bg-gradient-to-l from-transparent to-gold-500" />
+          <div className="h-px w-20 bg-linear-to-l from-transparent to-gold-500" />
         </div>
         <p className="font-ui text-[0.6rem] tracking-[0.18em] text-gold-500">
           PUZZLE GAMES · SOLVERS · GENERATORS
