@@ -1,19 +1,33 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { clamp } from "../algorithms";
 
+/**
+ * Interface untuk konfigurasi kalkulasi ukuran grid responsif.
+ */
 interface UseResponsiveCellSizeProps {
-  rows?: number;
-  cols?: number;
+  rows?: number | null;
+  cols?: number | null;
   containerId?: string;
   minSize?: number;
   maxSize?: number;
   padding?: number;
   gap?: number;
+  gapRatio?: number;
   mode?: "fill" | "fit-container";
   scrollbarGuard?: number;
 }
 
+interface ResponsiveCellSizeResult {
+  cellSize: number;
+  gap: number;
+}
+
+/**
+ * Hook untuk menghitung ukuran cell dan gap secara dinamis.
+ * Jika rows/cols belum tersedia (null/undefined), hook akan mengembalikan nilai default/minSize.
+ */
 export default function useResponsiveCellSize({
   rows,
   cols,
@@ -21,16 +35,23 @@ export default function useResponsiveCellSize({
   minSize = 20,
   maxSize = 50,
   padding = 24,
-  gap = 0,
+  gap,
+  gapRatio = 0,
   mode = "fit-container",
   scrollbarGuard = 2,
-}: UseResponsiveCellSizeProps) {
-  const [cellSize, setCellSize] = useState(minSize);
+}: UseResponsiveCellSizeProps): ResponsiveCellSizeResult {
+  const [layout, setLayout] = useState<ResponsiveCellSizeResult>({
+    cellSize: minSize,
+    gap: gap ?? 0,
+  });
 
   useEffect(() => {
-    const container = document.getElementById(containerId);
+    if (rows == null || cols == null || rows <= 0 || cols <= 0) {
+      return;
+    }
 
-    if (!container || !rows || !cols) return;
+    const container = document.getElementById(containerId);
+    if (!container) return;
 
     const update = () => {
       const containerWidth = Math.max(
@@ -42,27 +63,47 @@ export default function useResponsiveCellSize({
         container.clientHeight - padding - scrollbarGuard,
       );
 
-      const totalGapWidth = Math.ceil(Math.max(0, cols - 1) * (gap * 1.1));
-      const totalGapHeight = Math.ceil(Math.max(0, rows - 1) * (gap * 1.1));
+      let finalCellSize: number;
+      let finalGap: number;
 
-      const cellFromWidth = Math.floor((containerWidth - totalGapWidth) / cols);
-      const cellFromHeight = Math.floor(
-        (containerHeight - totalGapHeight) / rows,
-      );
-      const idealSize = Math.min(cellFromWidth, cellFromHeight);
+      if (gap !== undefined) {
+        finalGap = gap;
+        const totalGapWidth = Math.max(0, cols - 1) * finalGap;
+        const totalGapHeight = Math.max(0, rows - 1) * finalGap;
 
-      if (mode === "fill") {
-        setCellSize(Math.max(minSize, idealSize));
+        const cellFromWidth = (containerWidth - totalGapWidth) / cols;
+        const cellFromHeight = (containerHeight - totalGapHeight) / rows;
+        const idealSize = Math.min(cellFromWidth, cellFromHeight);
+
+        finalCellSize =
+          mode === "fill"
+            ? Math.max(minSize, idealSize)
+            : Math.max(minSize, Math.min(idealSize, maxSize));
       } else {
-        setCellSize(Math.max(minSize, Math.min(idealSize, maxSize)));
+        const ratio = clamp(gapRatio, 0, 100);
+        const rawCell = Math.min(
+          containerWidth / (cols + ratio * (cols - 1)),
+          containerHeight / (rows + ratio * (rows - 1)),
+        );
+
+        finalCellSize =
+          mode === "fill"
+            ? Math.max(minSize, rawCell)
+            : Math.max(minSize, Math.min(rawCell, maxSize));
+
+        finalGap = finalCellSize * ratio;
       }
+
+      setLayout({
+        cellSize: Math.floor(finalCellSize),
+        gap: Math.floor(finalGap),
+      });
     };
 
     update();
 
     const observer = new ResizeObserver(update);
     observer.observe(container);
-
     window.addEventListener("resize", update);
 
     return () => {
@@ -77,9 +118,10 @@ export default function useResponsiveCellSize({
     maxSize,
     padding,
     gap,
+    gapRatio,
     mode,
     scrollbarGuard,
   ]);
 
-  return cellSize;
+  return layout;
 }

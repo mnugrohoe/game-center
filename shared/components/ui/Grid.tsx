@@ -11,6 +11,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { getInterpolatedHexColor } from "./tokens";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -64,22 +65,70 @@ export type GapRenderProps = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Stroke color strategy for a {@link PathSegment}.
+ *
+ * - `single` — one flat color for the whole stroke.
+ * - `gradient` — a `startColor → endColor` ramp anchored to the segment's
+ *   **eventual full length**, not its current drawn length. Use `pct` to
+ *   report how far the current draw is into that eventual length (0–1),
+ *   so a path drawn at 50% progress shows exactly the first half of the
+ *   full gradient — the color at any given cell stays stable as the path
+ *   grows, instead of being re-stretched every time a cell is added.
+ */
+export type PathColorMode =
+  | { type: Extract<PathColorModeType, "single">; color: string }
+  | {
+      type: Extract<PathColorModeType, "gradient">;
+      startColor: string;
+      endColor: string;
+      /**
+       * Progress of the current `order` length against the segment's
+       * eventual full length, in the range `0–1`.
+       *
+       * Example: a path that will eventually span 26 cells but currently
+       * has 13 drawn passes `pct = 13 / 26 = 0.5` — the visible stroke
+       * then renders only the first half of the `startColor → endColor`
+       * ramp, so the colors at cell 13 match what they'll be once the
+       * path reaches its full 26-cell length.
+       *
+       * @defaultValue 1 (gradient spans the full visible stroke)
+       */
+      pct?: number;
+    };
+type PathColorModeType = "single" | "gradient";
+
+/**
  * A single SVG path segment for {@link SwapPathOverlay}.
  *
- * @example
+ * @example Flat color
  * ```ts
  * const seg: PathSegment = {
  *   order: ["0-0", "1-0", "1-1"],
- *   color: "#f59e0b",
+ *   colorMode: { type: "single", color: "#f59e0b" },
  *   showEndpoints: true,
+ * };
+ * ```
+ *
+ * @example Gradient anchored to eventual full length
+ * ```ts
+ * const fullLength = 26;
+ * const seg: PathSegment = {
+ *   order: currentOrder, // length 13
+ *   colorMode: {
+ *     type: "gradient",
+ *     startColor: "#f59e0b",
+ *     endColor: "#ef4444",
+ *     pct: currentOrder.length / fullLength, // 0.5
+ *   },
  * };
  * ```
  */
 export type PathSegment = {
   /** Ordered `"x-y"` cell keys that form the path. */
-  order: string[];
-  /** CSS color string for the stroke and endpoint dots. */
-  color: string;
+  order: CellKey[];
+  /** Stroke + endpoint color strategy. */
+  colorMode: PathColorMode;
+  showStartpoints?: boolean;
   /** When `true`, renders filled circles at the first and last cell. */
   showEndpoints?: boolean;
 };
@@ -99,7 +148,11 @@ interface SwapPathOverlayProps {
  * Absolute-positioned SVG overlay that renders pipe/flow paths on top of the grid.
  *
  * Mount as a **sibling** of `GridWrapper` inside a `position: relative` container.
- * The SVG is `pointer-events: none` and `overflow: visible`.
+ * The SVG is `pointer-events: none` and `overflow: visible`, so it never
+ * intercepts grid interaction.
+ *
+ * Corners are rounded with quadratic beziers so multi-cell paths read as a
+ * continuous snake/pipe rather than blocky right angles.
  *
  * @example
  * ```tsx
@@ -119,7 +172,6 @@ export function SwapPathOverlay({
   const strokeW = cellSize * thickness;
   const cornerR = ((cellSize * thickness) / 2) * 1.2;
 
-  /** Maps an `"x-y"` key to its pixel centre `[cx, cy]`. */
   const centre = (key: string): [number, number] => {
     const [x, y] = key.split("-").map(Number);
     return [x * step + cellSize / 2, y * step + cellSize / 2];
@@ -134,8 +186,9 @@ export function SwapPathOverlay({
 
     if (order.length === 1) {
       const [cx, cy] = centre(order[0]);
-      const r = strokeW / 2;
-      return `M ${cx - r} ${cy} a ${r} ${r} 0 1 0 ${r * 2} 0 a ${r} ${r} 0 1 0 -${r * 2} 0`;
+      // Gunakan diameter yang sama dengan strokeWidth agar terlihat proporsional
+      const r = strokeW / 12;
+      return `M ${cx},${cy} m -${r},0 a ${r},${r} 0 1,0 ${r * 2},0 a ${r},${r} 0 1,0 -${r * 2},0`;
     }
 
     const pts = order.map(centre);
@@ -177,7 +230,6 @@ export function SwapPathOverlay({
 
   return (
     <svg
-      aria-hidden
       style={{
         position: "absolute",
         inset: 0,
@@ -187,36 +239,232 @@ export function SwapPathOverlay({
     >
       {segments.map((seg, i) => {
         if (seg.order.length === 0) return null;
-        const d = buildPath(seg.order);
-        const epR = cellSize * 0.26;
-        const [sx, sy] = centre(seg.order[0]);
-        const [ex, ey] = centre(seg.order[seg.order.length - 1]);
 
+        const { colorMode } = seg;
+        const isGradient = colorMode.type === "gradient";
+        const pct = isGradient ? (colorMode.pct ?? 1) : 1;
+
+        // Render untuk Single Color
+        if (!isGradient) {
+          return (
+            <g key={i}>
+              <path
+                d={buildPath(seg.order)}
+                fill="none"
+                stroke={colorMode.color}
+                strokeWidth={strokeW}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </g>
+          );
+        }
+
+        // Render untuk Gradient (Per segmen antar titik)
         return (
           <g key={i}>
-            <path
-              d={d}
-              fill="none"
-              stroke={seg.color}
-              strokeWidth={strokeW}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={0.85}
-            />
-            {seg.showEndpoints && (
-              <>
-                <circle cx={sx} cy={sy} r={epR} fill={seg.color} />
-                {seg.order.length > 1 && (
-                  <circle cx={ex} cy={ey} r={epR} fill={seg.color} />
-                )}
-              </>
-            )}
+            {seg.order.slice(0, -1).map((_, idx) => {
+              const p1 = centre(seg.order[idx]);
+              const p2 = centre(seg.order[idx + 1]);
+
+              // Hitung warna untuk segmen ini berdasarkan progres global (pct)
+              // Total panjang ramp adalah pct. Segmen saat ini berada di range [startP, endP]
+              const startP = (idx / (seg.order.length - 1)) * pct;
+              const endP = ((idx + 1) / (seg.order.length - 1)) * pct;
+
+              const startCol = getInterpolatedHexColor(
+                startP,
+                colorMode.startColor,
+                colorMode.endColor,
+              );
+              const endCol = getInterpolatedHexColor(
+                endP,
+                colorMode.startColor,
+                colorMode.endColor,
+              );
+
+              const gradId = `grad-${i}-${idx}`;
+              return (
+                <g key={idx}>
+                  <defs>
+                    <linearGradient
+                      id={gradId}
+                      x1={p1[0]}
+                      y1={p1[1]}
+                      x2={p2[0]}
+                      y2={p2[1]}
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop offset="0%" stopColor={startCol} />
+                      <stop offset="100%" stopColor={endCol} />
+                    </linearGradient>
+                  </defs>
+                  <line
+                    x1={p1[0]}
+                    y1={p1[1]}
+                    x2={p2[0]}
+                    y2={p2[1]}
+                    stroke={`url(#${gradId})`}
+                    strokeWidth={strokeW}
+                    strokeLinecap="round"
+                  />
+                </g>
+              );
+            })}
           </g>
         );
       })}
     </svg>
   );
 }
+// export function SwapPathOverlay({
+//   segments,
+//   cellSize,
+//   gap,
+//   thickness = 0.38,
+// }: SwapPathOverlayProps) {
+//   const step = cellSize + gap;
+//   const strokeW = cellSize * thickness;
+//   const cornerR = ((cellSize * thickness) / 2) * 1.2;
+
+//   /** Maps an `"x-y"` key to its pixel centre `[cx, cy]`. */
+//   const centre = (key: string): [number, number] => {
+//     const [x, y] = key.split("-").map(Number);
+//     return [x * step + cellSize / 2, y * step + cellSize / 2];
+//   };
+
+//   /**
+//    * Builds an SVG `d` attribute for the given ordered key list.
+//    * Applies quadratic bezier corner-rounding when direction changes.
+//    */
+//   function buildPath(order: string[]): string {
+//     if (order.length === 0) return "";
+
+//     if (order.length === 1) {
+//       const [cx, cy] = centre(order[0]);
+//       // Gunakan diameter yang sama dengan strokeWidth agar terlihat proporsional
+//       const r = strokeW / 12;
+//       return `M ${cx},${cy} m -${r},0 a ${r},${r} 0 1,0 ${r * 2},0 a ${r},${r} 0 1,0 -${r * 2},0`;
+//     }
+
+//     const pts = order.map(centre);
+//     let d = `M ${pts[0][0]} ${pts[0][1]}`;
+
+//     for (let i = 1; i < pts.length; i++) {
+//       const prev = pts[i - 1];
+//       const curr = pts[i];
+//       const next = pts[i + 1] ?? null;
+
+//       if (!next) {
+//         d += ` L ${curr[0]} ${curr[1]}`;
+//         continue;
+//       }
+
+//       const [dx1, dy1] = [curr[0] - prev[0], curr[1] - prev[1]];
+//       const [dx2, dy2] = [next[0] - curr[0], next[1] - curr[1]];
+
+//       // Straight line — no corner needed
+//       if (dx1 === dx2 && dy1 === dy2) {
+//         d += ` L ${curr[0]} ${curr[1]}`;
+//         continue;
+//       }
+
+//       const len1 = Math.hypot(dx1, dy1);
+//       const len2 = Math.hypot(dx2, dy2);
+//       const u1 = [dx1 / len1, dy1 / len1];
+//       const u2 = [dx2 / len2, dy2 / len2];
+//       const cr = Math.min(cornerR, step * 0.4);
+
+//       const [ex, ey] = [curr[0] - u1[0] * cr, curr[1] - u1[1] * cr];
+//       const [fx, fy] = [curr[0] + u2[0] * cr, curr[1] + u2[1] * cr];
+
+//       d += ` L ${ex} ${ey} Q ${curr[0]} ${curr[1]} ${fx} ${fy}`;
+//     }
+
+//     return d;
+//   }
+
+//   /**
+//    * Computes the gradient vector `[x1, y1, x2, y2]` (in `userSpaceOnUse`
+//    * pixel coordinates) for a segment so that:
+//    *
+//    * - the vector always starts at the path's first point, and
+//    * - the vector's far end (`endColor`, offset `1`) lands exactly where
+//    *   the path's eventual full length would put it — i.e. the visible
+//    *   stroke only ever paints the `[0, pct]` slice of the full ramp.
+//    *
+//    * This is what makes the gradient "stay put" as the path grows: cell N
+//    * always gets the same color regardless of how many cells are currently
+//    * drawn, because the ramp is stretched to the *eventual* length and the
+//    * current stroke is just a window into it.
+//    */
+//   function gradientVector(
+//     order: string[],
+//     pct: number,
+//   ): [number, number, number, number] {
+//     const [x1, y1] = centre(order[0]);
+//     const [x2, y2] = centre(order[order.length - 1]);
+
+//     // Guard against pct <= 0 (avoid divide-by-zero / inverted vector).
+//     const safePct = pct > 0.0001 ? pct : 1;
+
+//     const fx = x1 + (x2 - x1) / safePct;
+//     const fy = y1 + (y2 - y1) / safePct;
+
+//     return [x1, y1, fx, fy];
+//   }
+
+//   return (
+//     <svg
+//       aria-hidden
+//       style={{
+//         position: "absolute",
+//         inset: 0,
+//         pointerEvents: "none",
+//         overflow: "visible",
+//       }}
+//     >
+//       {segments.map((seg, i) => {
+//         if (seg.order.length === 0) return null;
+
+//         const d = buildPath(seg.order);
+//         const dotColor = resolveDotColor(seg.colorMode);
+//         const stroke =
+//           seg.colorMode.type === "gradient" && seg.order.length >= 2
+//             ? `url(#swap-path-gradient-${i})`
+//             : seg.colorMode.type === "gradient"
+//               ? seg.colorMode.endColor // single-cell gradient — flat fallback
+//               : seg.colorMode.color;
+
+//         const [sx, sy] = centre(seg.order[0]);
+//         const [ex, ey] = centre(seg.order[seg.order.length - 1]);
+//         const epR = cellSize * 0.26;
+
+//         return (
+//           <g key={i}>
+//             <path
+//               d={d}
+//               fill={stroke}
+//               stroke={stroke}
+//               strokeWidth={strokeW}
+//               strokeLinecap="round"
+//               strokeLinejoin="round"
+//               opacity={0.85}
+//             />
+//             {seg.showEndpoints && (
+//               <>
+//                 <circle cx={sx} cy={sy} r={epR} fill={dotColor} />
+//                 {seg.order.length > 1 && (
+//                   <circle cx={ex} cy={ey} r={epR} fill={dotColor} />
+//                 )}
+//               </>
+//             )}
+//           </g>
+//         );
+//       })}
+//     </svg>
+//   );
+// }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GridWrapper
@@ -278,8 +526,8 @@ export interface GridWrapperProps extends Omit<
   onClick?: (coord: CellCoord) => void;
   /** Fired on double-click over a cell. */
   onDoubleClick?: (coord: CellCoord) => void;
-  /** Fired on right-click / context-menu over a cell. */
-  onContextMenu?: (e: React.MouseEvent, coord: CellCoord) => void;
+  /** Fired on right-click / context-menu over a cell. Caller must call `event.preventDefault()` if needed — it is NOT called automatically here. */
+  onContextMenu?: (event: React.MouseEvent, coord: CellCoord) => void;
 }
 
 /**
@@ -293,6 +541,10 @@ export interface GridWrapperProps extends Omit<
  * a pointer that lands in the gutter between cells returns `null` from the
  * coordinate resolver and never fires `onClick` or drag callbacks. This lets
  * `renderGap` children handle their own click events independently.
+ *
+ * **Click vs. drag**: `onClick` only fires if the pointer never crossed into
+ * a different cell between pointerdown and pointerup. Any cell-to-cell
+ * movement suppresses the click in favor of `onDragEnd`.
  *
  * @example
  * ```tsx
@@ -347,7 +599,13 @@ export function GridWrapper({
       const relX = clientX - rect.left;
       const relY = clientY - rect.top;
 
-      // Reject pointers that land in a gutter
+      // Outside the grid entirely (covers negative coords too, since a
+      // negative relX/relY always fails one of these bounds checks before
+      // the modulo below ever runs).
+      if (relX < 0 || relY < 0 || relX >= cols * step || relY >= rows * step)
+        return null;
+
+      // Reject pointers that land in a gutter.
       if (gap > 0 && (relX % step > cellSize || relY % step > cellSize))
         return null;
 
@@ -501,7 +759,7 @@ export function GridWrapper({
         return (
           <div
             key={`gap-${g.edge}-${g.x}-${g.y}`}
-            className="absolute select-none"
+            className="absolute select-none flex items-center justify-center"
             style={{
               left,
               top,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
 // shared UI
 import GameShell from "@/shared/components/layout/GameShell";
@@ -261,9 +261,6 @@ function MamboGame() {
 }
 
 export default function MamboGamePage() {
-  useEffect(() => {
-    document.title = "Kings Puzzle";
-  }, []);
   return (
     <MamboProvider>
       <MamboGame />

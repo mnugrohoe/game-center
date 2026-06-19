@@ -250,7 +250,7 @@ export default function MamboBoard() {
   const activePuzzle = isSolver ? customPuzzle.value : puzzle.value;
   const N = activePuzzle?.size ?? 0;
 
-  const cellSize = useResponsiveCellSize({
+  const { cellSize } = useResponsiveCellSize({
     rows: N,
     cols: N,
     gap: GAP,

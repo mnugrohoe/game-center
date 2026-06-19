@@ -87,7 +87,7 @@ describe("towerParamsGenerator (provider)", () => {
     const paramsLower = generateTowerParams(2.4, 777);
     const paramsHigher = generateTowerParams(2.6, 777);
 
-    expect(paramsLower.tier.name).toBe("Wood Tower"); // Index 1
-    expect(paramsHigher.tier.name).toBe("Stone Tower"); // Index 2
+    expect(paramsLower.tier.name).toBe(TOWER_DIFF_TIERS[1].name); // Index 1
+    expect(paramsHigher.tier.name).toBe(TOWER_DIFF_TIERS[2].name); // Index 2
   });
 });

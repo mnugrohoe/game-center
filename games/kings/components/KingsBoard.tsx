@@ -177,7 +177,7 @@ export default function KingsBoard() {
   // ── Painter state ────────────────────────────────────────────────────────
   const [activeRegionIndex, setActiveRegionIndex] = useState(0);
 
-  const cellSize = useResponsiveCellSize({
+  const { cellSize } = useResponsiveCellSize({
     rows: N,
     cols: N,
     mode: "fill",

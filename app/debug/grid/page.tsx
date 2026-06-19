@@ -1,21 +1,23 @@
-// app/debug/grid/page.tsx  (or wherever you mount this)
+// app/debug/grid/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   GridWrapper,
   GridCell,
   GridInputCell,
   SwapPathOverlay,
-  DragPayload,
-  CellCoord,
-  CellRenderProps,
+  type DragPayload,
+  type CellCoord,
+  type CellRenderProps,
+  type GapRenderProps,
+  type PathSegment,
 } from "@/shared/components/ui/Grid";
 import {
   useGrid,
-  GridInteractionMode,
-  SwapEndpointPair,
   cellKey,
+  type GridInteractionMode,
+  type SwapEndpointPair,
 } from "@/shared/hooks/useGrid";
 import { clamp } from "@/shared/algorithms";
 import useResponsiveCellSize from "@/shared/hooks/useResponsiveCellSize";
@@ -40,8 +42,16 @@ const MODES: GridInteractionMode[] = [
   "line",
   "paint",
   "erase",
-  "swap",
   "none",
+];
+
+type TabId = "selection" | "swap" | "input" | "gaps";
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: "selection", label: "selection" },
+  { id: "swap", label: "swap" },
+  { id: "input", label: "input" },
+  { id: "gaps", label: "gaps + clicks" },
 ];
 
 // ── Sudoku-style input board state ───────────────────────────────────────────
@@ -51,11 +61,11 @@ type InputBoard = Record<string, string | number>;
 // ── Page component ───────────────────────────────────────────────────────────
 
 export default function GridDebugPage() {
-  const [activeTab, setActiveTab] = useState<"selection" | "swap" | "input">(
-    "selection",
-  );
+  const [activeTab, setActiveTab] = useState<TabId>("selection");
 
-  // ── shared grid hook ────────────────────────────────────────────────────
+  // ── shared grid hook ───────────────────────────────────────────────────
+  // One hook instance reused across tabs keeps the debug panel consistent;
+  // `changeMode` resets the generic selection slice whenever we leave a tab.
   const {
     rows,
     cols,
@@ -63,6 +73,7 @@ export default function GridDebugPage() {
     gridState,
     selectedCellKeys,
     pathOrder,
+    dragPreview,
     swapPaths,
     initSwapPaths,
     swapPointerDown,
@@ -73,12 +84,19 @@ export default function GridDebugPage() {
     processCellInteraction,
     persistRectSelection,
     setDragCoords,
+    handleClick,
+    handleDoubleClick,
+    handleContextMenu,
   } = useGrid({ rows: PUZZLE.rows, cols: PUZZLE.cols });
 
   // ── input-board state ───────────────────────────────────────────────────
   const [inputBoard, setInputBoard] = useState<InputBoard>({});
 
-  const CELL_SIZE = useResponsiveCellSize({
+  // ── gaps-tab state: track which gaps have been toggled ───────────────────
+  const [activeGaps, setActiveGaps] = useState<Set<string>>(new Set());
+  const gapKey = (x: number, y: number, edge: "h" | "v") => `${edge}-${x}-${y}`;
+
+  const { cellSize: CELL_SIZE } = useResponsiveCellSize({
     rows: PUZZLE.rows,
     cols: PUZZLE.cols,
     containerId: "gridArea",
@@ -92,7 +110,17 @@ export default function GridDebugPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle Action
+  // Switching tabs should put the shared hook into a sane mode for that tab,
+  // and clear any leftover drag/selection state from the previous tab.
+  function handleTabChange(tab: TabId) {
+    setActiveTab(tab);
+    reset();
+    if (tab === "swap") changeMode("swap");
+    else if (tab === "selection") changeMode("cell");
+    else changeMode("none");
+  }
+
+  // ── input cell change ────────────────────────────────────────────────────
   const handleInputChange = (coord: CellCoord, value: string) => {
     setInputBoard((prev) => {
       const next = { ...prev };
@@ -121,12 +149,8 @@ export default function GridDebugPage() {
     swapEndpointColors.set(cellKey(p.start), p.color);
     swapEndpointColors.set(cellKey(p.end), p.color);
   }
-  const swapPathColors = new Map<string, string>(); // key → color
-  for (const p of swapPaths.values()) {
-    for (const k of p.keySet) swapPathColors.set(k, p.color);
-  }
 
-  // ── renderCell ──────────────────────────────────────────────────────────
+  // ── renderCell: selection tab ────────────────────────────────────────────
   function renderSelectionCell({ coord, cellSize }: CellRenderProps) {
     const k = cellKey(coord);
     const isSelected = selectedCellKeys.has(k);
@@ -165,6 +189,7 @@ export default function GridDebugPage() {
     );
   }
 
+  // ── renderCell: swap tab ─────────────────────────────────────────────────
   function renderSwapCell({ coord, cellSize }: CellRenderProps) {
     const k = cellKey(coord);
     const epColor = swapEndpointColors.get(k);
@@ -194,6 +219,7 @@ export default function GridDebugPage() {
     );
   }
 
+  // ── renderCell: input tab ────────────────────────────────────────────────
   function renderInputCell({ coord, cellSize }: CellRenderProps) {
     const k = cellKey(coord);
     return (
@@ -211,14 +237,99 @@ export default function GridDebugPage() {
     );
   }
 
-  // ── Swap segments for SVG overlay ────────────────────────────────────────
-  const swapSegments = [...swapPaths.values()].map((p) => ({
-    order: p.order,
-    color: p.color,
-    showEndpoints: true,
-  }));
+  // ── renderCell + renderGap: gaps/clicks tab ──────────────────────────────
+  // Demonstrates click / double-click / right-click acting on the same
+  // generic activeCellKeys slice, plus gap overlays rendered between cells.
+  function renderGapDemoCell({ coord, cellSize }: CellRenderProps) {
+    const k = cellKey(coord);
+    const isMarked = selectedCellKeys.has(k);
 
-  // ── shared pointer handlers ─────────────────────────────────────────────
+    return (
+      <GridCell
+        coord={coord}
+        cellSize={cellSize}
+        className="border border-zinc-700/50 flex items-center justify-center text-[10px] transition-colors"
+        style={{
+          backgroundColor: isMarked ? "rgba(168,85,247,0.35)" : "#0c0c0e",
+          borderRadius: 3,
+        }}
+      >
+        {isMarked ? "✕" : ""}
+      </GridCell>
+    );
+  }
+
+  function renderGapDemoGap({ gap, gapSize }: GapRenderProps) {
+    const k = gapKey(gap.x, gap.y, gap.edge);
+    const isActive = activeGaps.has(k);
+
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setActiveGaps((prev) => {
+            const next = new Set(prev);
+            if (next.has(k)) next.delete(k);
+            else next.add(k);
+            return next;
+          });
+        }}
+        className="w-full h-full transition-colors"
+        style={{
+          backgroundColor: isActive ? "#fbbf24" : "rgba(255,255,255,0.06)",
+          borderRadius: gapSize > 2 ? 2 : 0,
+        }}
+        aria-label={`toggle gap ${k}`}
+      />
+    );
+  }
+
+  // ── Swap segments for SVG overlay ────────────────────────────────────────
+  // `fullLength` is the Manhattan distance between each pair's fixed
+  // endpoints + 1 — used as the denominator for the gradient's `pct`, so the
+  // color ramp stays anchored to the eventual full path as it grows instead
+  // of being re-stretched across whatever length is currently drawn.
+  // const swapSegments: PathSegment[] = [...swapPaths.values()].map((p) => {
+  //   const fullLength =
+  //     Math.abs(p.endPoint.x - p.startPoint.x) +
+  //     Math.abs(p.endPoint.y - p.startPoint.y) +
+  //     1;
+
+  //   return {
+  //     order: p.order,
+  //     colorMode: {
+  //       type: "gradient",
+  //       startColor: `${p.color}55`, // light tint at the start
+  //       endColor: p.color, // full saturation at the (eventual) end
+  //       pct: Math.min(1, p.order.length / fullLength),
+  //     },
+  //     showEndpoints: true,
+  //   };
+  // });
+  const swapSegments: PathSegment[] = useMemo(
+    () =>
+      [...swapPaths.values()].map((p) => {
+        const fullLength =
+          Math.abs(p.endPoint.x - p.startPoint.x) +
+          Math.abs(p.endPoint.y - p.startPoint.y) +
+          1;
+        // const fullLength = PUZZLE.cols * PUZZLE.rows;
+
+        return {
+          order: p.order,
+          colorMode: {
+            type: "gradient",
+            startColor: p.color,
+            endColor: p.color + "50",
+            pct: Math.min(1, p.order.length / fullLength),
+          },
+          showEndpoints: true,
+        };
+      }),
+    [swapPaths],
+  );
+
+  // ── shared pointer handlers (selection / swap tabs) ──────────────────────
   const pointerHandlers = {
     onPointerDown: (coord: CellCoord) => {
       if (interactionMode === "swap") {
@@ -266,22 +377,17 @@ export default function GridDebugPage() {
       <div className="flex flex-1 flex-col items-center w-full h-full justify-center gap-6 p-8">
         {/* Tab switcher */}
         <div className="flex gap-1 bg-zinc-900 rounded-lg p-1">
-          {(["selection", "swap", "input"] as const).map((tab) => (
+          {TABS.map(({ id, label }) => (
             <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                if (tab === "swap") {
-                  changeMode("swap");
-                }
-              }}
+              key={id}
+              onClick={() => handleTabChange(id)}
               className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                activeTab === tab
+                activeTab === id
                   ? "bg-zinc-700 text-white"
                   : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
-              {tab}
+              {label}
             </button>
           ))}
         </div>
@@ -294,10 +400,7 @@ export default function GridDebugPage() {
           <div className="absolute inset-0 flex items-center justify-center">
             <div
               className="relative"
-              style={{
-                width: gridWidth,
-                height: gridHeight,
-              }}
+              style={{ width: gridWidth, height: gridHeight }}
             >
               {activeTab === "selection" && (
                 <GridWrapper
@@ -341,6 +444,22 @@ export default function GridDebugPage() {
                   renderCell={renderInputCell}
                 />
               )}
+
+              {activeTab === "gaps" && (
+                <GridWrapper
+                  rows={rows}
+                  cols={cols}
+                  cellSize={CELL_SIZE}
+                  gap={14}
+                  dragMode="cell"
+                  disabled={false}
+                  renderCell={renderGapDemoCell}
+                  renderGap={renderGapDemoGap}
+                  onClick={handleClick}
+                  onDoubleClick={handleDoubleClick}
+                  onContextMenu={handleContextMenu}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -367,6 +486,21 @@ export default function GridDebugPage() {
             >
               reset
             </button>
+          </div>
+        )}
+
+        {/* Gaps tab hint */}
+        {activeTab === "gaps" && (
+          <div className="flex flex-col items-center gap-1 text-[11px] text-zinc-500 text-center max-w-md">
+            <p>
+              <span className="text-zinc-300">click</span> a cell to mark it ·{" "}
+              <span className="text-zinc-300">double-click</span> to toggle ·{" "}
+              <span className="text-zinc-300">right-click</span> to clear it
+            </p>
+            <p>
+              amber gutters are independently clickable gaps — they never
+              trigger cell clicks
+            </p>
           </div>
         )}
 
@@ -412,6 +546,14 @@ export default function GridDebugPage() {
             <Row label="selected" value={`${selectedCellKeys.size} cells`} />
           </Section>
 
+          {/* Live rect preview box */}
+          {dragPreview && (
+            <Section title="dragPreview">
+              <Row label="x,y" value={`${dragPreview.x}, ${dragPreview.y}`} />
+              <Row label="w×h" value={`${dragPreview.w} × ${dragPreview.h}`} />
+            </Section>
+          )}
+
           {/* Selection details */}
           {interactionMode !== "swap" && selectedCellKeys.size > 0 && (
             <Section title="Selected keys">
@@ -453,6 +595,15 @@ export default function GridDebugPage() {
             </Section>
           )}
 
+          {/* Active gaps */}
+          {activeTab === "gaps" && activeGaps.size > 0 && (
+            <Section title={`Active gaps (${activeGaps.size})`}>
+              <pre className="text-[10px] text-zinc-400 whitespace-pre-wrap break-all leading-4">
+                {[...activeGaps].join("  ")}
+              </pre>
+            </Section>
+          )}
+
           {/* Input board values */}
           {activeTab === "input" && Object.keys(inputBoard).length > 0 && (
             <Section title="Input values">
@@ -467,7 +618,6 @@ export default function GridDebugPage() {
                     </div>
                   ))}
               </div>
-              <pre>{JSON.stringify(inputBoard, null, 1)}</pre>
             </Section>
           )}
         </div>

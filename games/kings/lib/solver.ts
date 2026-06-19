@@ -15,7 +15,6 @@ import { areAdjacent8 } from "@/shared/algorithms/grid";
 import type { Coord } from "@/shared/types";
 import type { KingsPuzzle } from "./generator";
 import type { BacktrackOptions } from "@/shared/algorithms/backtracking";
-import { EMPTY_CELL_STATE, KING_CELL_STATE } from "./constants";
 
 // ─── Shared Configurations Helper (DRY Engine) ────────────────────────────────
 

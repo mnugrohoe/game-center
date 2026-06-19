@@ -31,6 +31,7 @@ import { T, formatTime } from "../ui/tokens";
 import ProgressRing from "../ui/ProgressRing";
 import { ColorType, DiffTier } from "@/shared/types";
 import { SolveBanner } from "../ui/primitive";
+import Link from "next/link";
 
 export interface GameShellProps {
   gameName: string;
@@ -93,7 +94,7 @@ export default function GameShell({
         }}
       >
         {/* Logo slot — same width as left panel */}
-        <div
+        <Link
           style={{
             width: 220,
             display: "flex",
@@ -103,6 +104,7 @@ export default function GameShell({
             borderRight: `1px solid ${T.border}`,
             flexShrink: 0,
           }}
+          href="/games"
         >
           {logoIcon}
           <h1
@@ -117,7 +119,7 @@ export default function GameShell({
           >
             {gameName}
           </h1>
-        </div>
+        </Link>
 
         {/* Centre info strip */}
         <div

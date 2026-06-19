@@ -1,8 +1,10 @@
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
 /**
- * shared/utils/cn.ts
- * Tiny className merger — no extra dependency needed.
- * Filters falsy values and joins with space.
+ * Merge class names using clsx for conditional logic
+ * and tailwind-merge to resolve Tailwind conflicts.
  */
-export function cn(...classes: (string | undefined | null | false)[]): string {
-  return classes.filter(Boolean).join(" ");
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
 }

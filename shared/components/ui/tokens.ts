@@ -1,3 +1,4 @@
+import { lerp } from "@/shared/algorithms";
 import { ColorType } from "@/shared/types";
 interface TType {
   bg: ColorType;
@@ -60,7 +61,22 @@ export const T: TType = {
   font: "var(--font-jetbrains-mono), var(--font-geist-mono), monospace",
 };
 
-function hslToLuminance(h: number, s: number, l: number) {
+export const getInterpolatedHexColor = (
+  pct: number,
+  startHex: string,
+  endHex: string,
+) => {
+  const c1 = hexToRgb(startHex);
+  const c2 = hexToRgb(endHex);
+
+  const r = Math.round(lerp(c1.r, c2.r, pct));
+  const g = Math.round(lerp(c1.g, c2.g, pct));
+  const b = Math.round(lerp(c1.b, c2.b, pct));
+
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+};
+
+const getHslLuminance = (h: number, s: number, l: number) => {
   s /= 100;
   l /= 100;
 
@@ -91,7 +107,43 @@ function hslToLuminance(h: number, s: number, l: number) {
   const B = linear(b);
 
   return 0.2126 * R + 0.7152 * G + 0.0722 * B;
-}
+};
+
+const convertHslToHex = (h: number, s: number, l: number): string => {
+  l /= 100;
+  const a = (s * Math.min(l, 1 - l)) / 100;
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+};
+
+/**
+ * Mengonversi hex color string (seperti "#FF5733" atau "#F53") ke objek RGB.
+ */
+const hexToRgb = (hex: string) => {
+  // Menghapus tanda '#' jika ada
+  hex = hex.replace(/^#/, "");
+
+  // Mengubah hex 3-digit (misal: "F00") menjadi 6-digit ("FF0000")
+  if (hex.length === 3) {
+    hex = hex
+      .split("")
+      .map((char) => char + char)
+      .join("");
+  }
+
+  const bigint = parseInt(hex, 16);
+  return {
+    r: (bigint >> 16) & 255,
+    g: (bigint >> 8) & 255,
+    b: bigint & 255,
+  };
+};
 
 /** Palette used for colouring game regions / pieces */
 export const colorId = (id: string | number) => {
@@ -99,10 +151,11 @@ export const colorId = (id: string | number) => {
     return {
       bg: "0 0% 0% / 0", // 0% opacity ensures transparency
       text: "0 0% 0% / 0",
+      hex: "#000",
     };
   }
 
-  const i = hashString(id);
+  const i = getHashFromString(id);
   const hue = (i * 137.508) % 360;
   const saturation = [65, 75, 85][Math.floor(i / 360) % 3];
   const lightness = [50, 60, 70][Math.floor(i / 120) % 3];
@@ -112,10 +165,11 @@ export const colorId = (id: string | number) => {
   // Berubah setiap 2 indeks (Kontras Gelap -> Terang -> Gelap -> Terang)
   // Ini sangat krusial agar indeks yang berurutan punya kontras visual yang tajam
   // const lightness = [45, 65][i % 2];
-  const luminance = hslToLuminance(hue, saturation, lightness);
+  const luminance = getHslLuminance(hue, saturation, lightness);
   return {
     bg: `${hue} ${saturation}% ${lightness}%`,
     text: luminance > 0.179 ? "0 0% 0%" : "0 0% 100%",
+    hex: convertHslToHex(hue, saturation, lightness),
   };
 };
 
@@ -123,7 +177,7 @@ export const colorId = (id: string | number) => {
  * Deterministic hash of a string or number, used to derive a stable
  * color index from a rectangle's id.
  */
-function hashString(id: string | number): number {
+function getHashFromString(id: string | number): number {
   if (typeof id === "number") return id;
   let hash = 0;
   for (let i = 0; i < id.length; i++) {

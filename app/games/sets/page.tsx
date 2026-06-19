@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
 // shared UI
 import GameShell from "@/shared/components/layout/GameShell";
@@ -480,10 +480,6 @@ function CardSelector({
 // Page Wrapper Export
 // ─────────────────────────────────────────────────────────────────────────────
 export default function SetsGamePage() {
-  useEffect(() => {
-    document.title = "Sets Puzzle";
-  }, []);
-
   return (
     <SetsProvider>
       <SetsGame />

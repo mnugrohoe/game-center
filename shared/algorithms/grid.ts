@@ -40,9 +40,17 @@ export function bfs(opts: BfsOptions): Map<number, number> {
     const [r, c, dist] = queue.shift()!;
     if (onVisit?.(r, c, dist)) break;
     for (const [dr, dc] of dirs) {
-      const nr = r + dr, nc = c + dc;
+      const nr = r + dr,
+        nc = c + dc;
       const key = nr * cols + nc;
-      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && !visited.has(key) && canVisit(nr, nc, r, c)) {
+      if (
+        nr >= 0 &&
+        nr < rows &&
+        nc >= 0 &&
+        nc < cols &&
+        !visited.has(key) &&
+        canVisit(nr, nc, r, c)
+      ) {
         visited.set(key, dist + 1);
         queue.push([nr, nc, dist + 1]);
       }
@@ -57,7 +65,7 @@ export function bfs(opts: BfsOptions): Map<number, number> {
  * Checks that all cells in `cells` are connected (4-directional) within the grid.
  * A region is connected if BFS from any cell reaches all others.
  */
-export function isConnected(cells: Coord[], grid: Grid2D, regionId: number): boolean {
+export function isConnected(cells: Coord[], grid: Grid2D): boolean {
   if (cells.length === 0) return true;
   const cols = grid[0]?.length ?? 0;
   const cellSet = new Set(cells.map(([r, c]) => r * cols + c));
@@ -86,8 +94,7 @@ export function getRegionCells(grid: Grid2D, regionId: number): Coord[] {
 export function getRegionIds(grid: Grid2D, excludeNegative = true): number[] {
   const ids = new Set<number>();
   for (const row of grid)
-    for (const v of row)
-      if (!excludeNegative || v >= 0) ids.add(v);
+    for (const v of row) if (!excludeNegative || v >= 0) ids.add(v);
   return [...ids].sort((a, b) => a - b);
 }
 
@@ -120,8 +127,15 @@ export function floodFill(opts: FloodFillOptions): Coord[] {
   while (queue.length) {
     const [r, c] = queue.shift()!;
     for (const [dr, dc] of dirs) {
-      const nr = r + dr, nc = c + dc;
-      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] === targetValue) {
+      const nr = r + dr,
+        nc = c + dc;
+      if (
+        nr >= 0 &&
+        nr < rows &&
+        nc >= 0 &&
+        nc < cols &&
+        grid[nr][nc] === targetValue
+      ) {
         grid[nr][nc] = fillValue;
         filled.push([nr, nc]);
         queue.push([nr, nc]);
@@ -141,7 +155,7 @@ export function floodFill(opts: FloodFillOptions): Coord[] {
 export function labelComponents(
   grid: Grid2D,
   unassignedValue = -1,
-  startId = 0
+  startId = 0,
 ): number {
   let nextId = startId;
   const rows = grid.length;
@@ -149,7 +163,12 @@ export function labelComponents(
   for (let r = 0; r < rows; r++)
     for (let c = 0; c < cols; c++)
       if (grid[r][c] === unassignedValue) {
-        floodFill({ grid, start: [r, c], targetValue: unassignedValue, fillValue: nextId++ });
+        floodFill({
+          grid,
+          start: [r, c],
+          targetValue: unassignedValue,
+          fillValue: nextId++,
+        });
       }
   return nextId - startId;
 }
@@ -169,15 +188,19 @@ export interface CellBorders {
  *
  * Used by any grid game that needs to draw region outlines.
  */
-export function getRegionBorders(grid: Grid2D, r: number, c: number): CellBorders {
+export function getRegionBorders(
+  grid: Grid2D,
+  r: number,
+  c: number,
+): CellBorders {
   const reg = grid[r][c];
   const rows = grid.length;
   const cols = grid[0]?.length ?? 0;
   return {
-    top:    r === 0       || grid[r - 1][c] !== reg,
+    top: r === 0 || grid[r - 1][c] !== reg,
     bottom: r === rows - 1 || grid[r + 1][c] !== reg,
-    left:   c === 0       || grid[r][c - 1] !== reg,
-    right:  c === cols - 1 || grid[r][c + 1] !== reg,
+    left: c === 0 || grid[r][c - 1] !== reg,
+    right: c === cols - 1 || grid[r][c + 1] !== reg,
   };
 }
 
@@ -195,7 +218,11 @@ export function chebyshevDist([r1, c1]: Coord, [r2, c2]: Coord): number {
 
 /** Returns true if two cells are within Chebyshev distance 1 (8-directional neighbors). */
 export function areAdjacent8([r1, c1]: Coord, [r2, c2]: Coord): boolean {
-  return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1 && !(r1 === r2 && c1 === c2);
+  return (
+    Math.abs(r1 - r2) <= 1 &&
+    Math.abs(c1 - c2) <= 1 &&
+    !(r1 === r2 && c1 === c2)
+  );
 }
 
 /** Returns true if two cells are 4-directional neighbors. */
@@ -212,11 +239,16 @@ export function makeGrid(rows: number, cols: number, value: number): Grid2D {
 
 /** Deep-clones a Grid2D. */
 export function cloneGrid(grid: Grid2D): Grid2D {
-  return grid.map(row => [...row]);
+  return grid.map((row) => [...row]);
 }
 
 /** Returns in-bounds 4-directional neighbors of [r, c]. */
-export function neighbors4(r: number, c: number, rows: number, cols: number): Coord[] {
+export function neighbors4(
+  r: number,
+  c: number,
+  rows: number,
+  cols: number,
+): Coord[] {
   return (CARDINAL_DIRS as Coord[])
     .map(([dr, dc]) => [r + dr, c + dc] as Coord)
     .filter(([nr, nc]) => nr >= 0 && nr < rows && nc >= 0 && nc < cols);

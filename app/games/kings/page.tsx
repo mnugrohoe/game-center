@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
 // shared UI
 import GameShell from "@/shared/components/layout/GameShell";
@@ -247,9 +247,6 @@ function KingsGame() {
 }
 
 export default function KingsGamePage() {
-  useEffect(() => {
-    document.title = "Kings Puzzle";
-  }, []);
   return (
     <KingsProvider>
       <KingsGame />

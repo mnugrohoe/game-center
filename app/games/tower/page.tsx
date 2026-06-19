@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
 // shared UI
 import GameShell from "@/shared/components/layout/GameShell";
@@ -206,10 +206,6 @@ function TowerGame() {
 // Page Wrapper Export
 // ---------------------------------------------------------------------------
 export default function TowerGamePage() {
-  useEffect(() => {
-    document.title = "Tower Puzzle";
-  }, []);
-
   return (
     <TowerProvider>
       <TowerGame />

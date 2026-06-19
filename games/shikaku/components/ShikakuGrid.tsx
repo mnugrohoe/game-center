@@ -194,9 +194,9 @@ export default function ShikakuGrid() {
 
   const activePuzzle = generator.isSolver ? customPuzzle.value : puzzle.value;
 
-  const cellSize = useResponsiveCellSize({
-    rows: activePuzzle?.height,
-    cols: activePuzzle?.width,
+  const { cellSize } = useResponsiveCellSize({
+    rows: activePuzzle?.height ?? 0,
+    cols: activePuzzle?.width ?? 0,
   });
 
   const W = activePuzzle?.width ?? 0;

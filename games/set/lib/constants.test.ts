@@ -6,7 +6,7 @@ import { COLORS, COLOR_MAP, COUNTS, SYMBOLS, TEXTURES } from "./constants";
 
 describe("SYMBOLS", () => {
   it("contains exactly 3 symbols", () => {
-    expect(SYMBOLS).toEqual(["diamond", "hourglass", "x"]);
+    expect(SYMBOLS).toEqual(["diamond", "hourglass", "love"]);
   });
 
   it("contains unique values", () => {

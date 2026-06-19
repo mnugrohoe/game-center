@@ -2,7 +2,7 @@
  * @module constraints
  * Generic constraint validation utilities for grid-based puzzles.
  *
- * Common constraints appear in many puzzles:
+ * Common constraints appear in munknown puzzles:
  * - Row/column quotas (exactly N of value X)
  * - No consecutive triples
  * - Parity (alternating values)
@@ -61,7 +61,7 @@ export function checkExactQuota<T>(
 
 /**
  * Validates that no 3+ consecutive elements are identical.
- * Used by Mambo, many logic puzzles.
+ * Used by Mambo, munknown logic puzzles.
  *
  * @param sequence - Row/column to check.
  * @returns True if no 3+ consecutive identical values exist.
@@ -127,8 +127,8 @@ export function checkAlternating<T>(
  * checkPairConstraint(1, 1, "x");  // false
  */
 export function checkPairConstraint(
-  value1: any,
-  value2: any,
+  value1: unknown,
+  value2: unknown,
   type: "=" | "x",
 ): boolean {
   if (type === "=") {
@@ -160,12 +160,12 @@ export function checkPairConstraint(
  * );
  */
 export function checkCellConstraints(
-  grid: readonly any[][],
+  grid: readonly unknown[][],
   r: number,
   c: number,
-  value: any,
+  value: unknown,
   constraints: Array<
-    (g: readonly any[][], r: number, c: number, v: any) => boolean
+    (g: readonly unknown[][], r: number, c: number, v: unknown) => boolean
   >,
 ): boolean {
   for (const constraint of constraints) {
@@ -197,12 +197,12 @@ export function checkCellConstraints(
  * );
  */
 export function checkRowWithConstraints(
-  grid: readonly any[][],
+  grid: readonly unknown[][],
   r: number,
   c: number,
-  value: any,
+  value: unknown,
   size: number,
-  constraints: Array<(row: readonly any[]) => boolean>,
+  constraints: Array<(row: readonly unknown[]) => boolean>,
 ): boolean {
   // Simulate row with value placed
   const row = [...grid[r]];
@@ -229,12 +229,12 @@ export function checkRowWithConstraints(
  * @returns True if column would be valid.
  */
 export function checkColWithConstraints(
-  grid: readonly any[][],
+  grid: readonly unknown[][],
   r: number,
   c: number,
-  value: any,
+  value: unknown,
   size: number,
-  constraints: Array<(col: readonly any[]) => boolean>,
+  constraints: Array<(col: readonly unknown[]) => boolean>,
 ): boolean {
   // Simulate column with value placed
   const col = grid.map((row) => row[c]);
@@ -262,8 +262,8 @@ export function checkColWithConstraints(
  * checkEdge(1, 1, "=");  // true
  */
 export function checkEdge(
-  cell1: any,
-  cell2: any,
+  cell1: unknown,
+  cell2: unknown,
   edgeType: "=" | "x",
 ): boolean {
   // Both cells unfilled
@@ -295,7 +295,7 @@ export function checkEdge(
  * ]);
  */
 export function checkCellEdges(
-  grid: readonly any[][],
+  grid: readonly unknown[][],
   r: number,
   c: number,
   edges: Array<{

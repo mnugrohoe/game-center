@@ -29,9 +29,8 @@ export interface RegionMetrics {
  * Used to show players why a puzzle is rated as it is.
  *
  * @param grid - N×N region grid (each cell = region ID).
- * @param N    - Grid size.
  */
-export function measureRegions(grid: Grid2D, N: number): RegionMetrics {
+export function measureRegions(grid: Grid2D): RegionMetrics {
   const regIds = getRegionIds(grid);
   const sizes: number[] = [];
   let compSum = 0;
@@ -49,7 +48,9 @@ export function measureRegions(grid: Grid2D, N: number): RegionMetrics {
   }
 
   const avg = sizes.reduce((a, b) => a + b, 0) / sizes.length;
-  const stddev = Math.sqrt(sizes.reduce((a, v) => a + (v - avg) ** 2, 0) / sizes.length);
+  const stddev = Math.sqrt(
+    sizes.reduce((a, v) => a + (v - avg) ** 2, 0) / sizes.length,
+  );
 
   return {
     minSize: Math.min(...sizes),

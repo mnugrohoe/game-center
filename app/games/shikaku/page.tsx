@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
 // shared UI
 import GameShell from "@/shared/components/layout/GameShell";
@@ -278,9 +278,6 @@ function ShikakuGame() {
 }
 
 export default function ShikakuGamePage() {
-  useEffect(() => {
-    document.title = "Shikaku Puzzle";
-  }, []);
   return (
     <ShikakuProvider>
       <ShikakuGame />
